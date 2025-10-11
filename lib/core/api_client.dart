@@ -16,37 +16,53 @@ class ApiClient {
       headers: {'Content-Type': 'application/json'},
     ));
 
-    // Interceptor para añadir el token de Supabase si existe (DIP con Supabase)
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        final session = Supabase.instance.client.auth.currentSession;
-        final accessToken = session?.accessToken;
-        if (accessToken != null && accessToken.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer $accessToken';
-        }
-        handler.next(options);
-      },
-      onError: (e, handler) {
-        // Aquí podrías mapear errores de red a mensajes de UI
-        handler.next(e);
-      },
-    ));
+    // Añade Bearer si hay sesión
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      final session = Supabase.instance.client.auth.currentSession;
+      final accessToken = session?.accessToken;
+      if (accessToken != null && accessToken.isNotEmpty) {
+        options.headers['Authorization'] = 'Bearer $accessToken';
+      }
+      handler.next(options);
+    }));
 
     return ApiClient._(dio);
   }
 
-  /// Intenta /health; si no existe, consulta /openapi.json (FastAPI lo expone por defecto)
+  // Cliente sin auth para evitar preflight en pings web
+  Dio _noAuth() => Dio(BaseOptions(
+        baseUrl: Env.apiBaseUrl,
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: {'Content-Type': 'application/json'},
+      ));
+
+  // --- Ping de salud ---
   Future<String> checkBackend() async {
+    final d = _noAuth();
     try {
-      final res = await _dio.get('/health');
+      final res = await d.get('/health');
       return 'HEALTH: ${res.statusCode} ${res.data}';
     } on DioException catch (_) {
-      // Fallback al OpenAPI de FastAPI
-      final res = await _dio.get('/openapi.json');
-      // recortamos para mostrar nombres de endpoints si existen
+      final res = await d.get('/openapi.json');
       final map = res.data is Map ? res.data as Map : jsonDecode(res.data);
       final paths = (map['paths'] as Map?)?.keys.take(5).join('\n - ');
       return 'OpenAPI detectado. Endpoints:\n - ${paths ?? 's/a'}';
     }
+  }
+
+  // --- Helpers genéricos para tus features ---
+  Future<Map<String, dynamic>> getJson(String path, {Map<String, dynamic>? query}) async {
+    final res = await _dio.get(path, queryParameters: query);
+    return res.data is Map<String, dynamic>
+        ? res.data as Map<String, dynamic>
+        : (jsonDecode(res.data as String) as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body, {Map<String, dynamic>? query}) async {
+    final res = await _dio.post(path, data: body, queryParameters: query);
+    return res.data is Map<String, dynamic>
+        ? res.data as Map<String, dynamic>
+        : (jsonDecode(res.data as String) as Map<String, dynamic>);
   }
 }
