@@ -6,6 +6,7 @@ import '../../core/api_client.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/supabase_service.dart';
+import 'reportes_create.dart';
 // Removed unused imports: go_router, env
 
 class ReportesPage extends StatefulWidget {
@@ -78,6 +79,30 @@ class _ReportesPageState extends State<ReportesPage> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            tooltip: 'Nuevo reporte',
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () async {
+              await showDialog(
+                context: context,
+                builder: (ctx) {
+                  return AlertDialog(
+                    backgroundColor: Colors.white,
+                    contentPadding: const EdgeInsets.all(16),
+                    content: SizedBox(
+                      width: 420,
+                      child: ReportesCreateForm(
+                        onSuccess: () {
+                          // refrescar al cerrar
+                          _refresh();
+                        },
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),

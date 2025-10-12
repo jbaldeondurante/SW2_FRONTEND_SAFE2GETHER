@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SupabaseService {
   final SupabaseClient _client;
   bool _backendLoggedIn = false;
+  int? _backendUserId;
+  String? _backendUsername;
   // Notifier para que la UI / router pueda reaccionar a cambios del login del backend.
   final ValueNotifier<bool> backendLoginNotifier = ValueNotifier(false);
   // Señal para indicar que la restauración inicial terminó
@@ -22,11 +24,47 @@ class SupabaseService {
     _persistBackendLogin(v);
   }
 
+  int? get backendUserId => _backendUserId;
+  set backendUserId(int? id) {
+    _backendUserId = id;
+    _persistBackendUserId(id);
+  }
+
+  String? get backendUsername => _backendUsername;
+  set backendUsername(String? u) {
+    _backendUsername = u;
+    _persistBackendUsername(u);
+  }
+
   static const _kBackendLoginKey = 'backend_logged_in';
+  static const _kBackendUserIdKey = 'backend_user_id';
+  static const _kBackendUsernameKey = 'backend_username';
   Future<void> _persistBackendLogin(bool v) async {
     try {
       final sp = await SharedPreferences.getInstance();
       await sp.setBool(_kBackendLoginKey, v);
+    } catch (_) {}
+  }
+
+  Future<void> _persistBackendUserId(int? id) async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (id == null) {
+        await sp.remove(_kBackendUserIdKey);
+      } else {
+        await sp.setInt(_kBackendUserIdKey, id);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistBackendUsername(String? u) async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (u == null || u.isEmpty) {
+        await sp.remove(_kBackendUsernameKey);
+      } else {
+        await sp.setString(_kBackendUsernameKey, u);
+      }
     } catch (_) {}
   }
 
@@ -36,6 +74,8 @@ class SupabaseService {
       final v = sp.getBool(_kBackendLoginKey) ?? false;
       _backendLoggedIn = v;
       backendLoginNotifier.value = v;
+      _backendUserId = sp.getInt(_kBackendUserIdKey);
+      _backendUsername = sp.getString(_kBackendUsernameKey);
     } catch (_) {}
   }
 
@@ -83,5 +123,7 @@ class SupabaseService {
   Future<void> signOut() async {
     await _client.auth.signOut();
     backendLoggedIn = false; // will persist and notify
+    backendUserId = null;
+    backendUsername = null;
   }
 }

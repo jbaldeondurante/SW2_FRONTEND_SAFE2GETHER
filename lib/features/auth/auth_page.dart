@@ -67,7 +67,7 @@ class _AuthPageState extends State<AuthPage> {
           return await widget.api.loginBackend(user: user, psswd: pass);
         });
 
-        setState(() => _msg = 'RESPONSE LOGIN (API: ${backend['detail'] ?? '200'})');
+  setState(() => _msg = 'RESPONSE LOGIN (API: ${backend['detail'] ?? '200'})');
 
         // Redirige a /home si la API respondió exitosamente (200) o no devolvió 'status'
         final code = backend['status'] as int?;
@@ -75,6 +75,27 @@ class _AuthPageState extends State<AuthPage> {
           // Marca en el servicio que el backend autenticó al usuario
           try {
             widget.auth.backendLoggedIn = true;
+            // soportar respuestas: { user_id }, { id }, { user: { id } }, { data: { user_id } }, { data: { user: { id } } }
+            dynamic id = backend['user_id'] ?? backend['id'] ?? backend['userId'];
+            if (id == null && backend['data'] is Map) {
+              final m = backend['data'] as Map;
+              id = m['user_id'] ?? m['id'] ?? m['userId'] ??
+                  (m['user'] is Map ? (m['user']['id'] ?? m['user']['user_id'] ?? m['user']['userId']) : null);
+            }
+            if (id == null && backend['user'] is Map) {
+              final um = backend['user'] as Map;
+              id = um['id'] ?? um['user_id'] ?? um['userId'];
+            }
+            if (id is int) {
+              widget.auth.backendUserId = id;
+            } else if (id is String) {
+              final parsed = int.tryParse(id);
+              if (parsed != null) widget.auth.backendUserId = parsed;
+            }
+            final uname = backend['user'] ?? backend['username'] ?? backend['name'];
+            if (uname is String && uname.isNotEmpty) {
+              widget.auth.backendUsername = uname;
+            }
           } catch (_) {}
           context.go('/reportes');
         }
