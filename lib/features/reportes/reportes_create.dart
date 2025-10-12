@@ -1,19 +1,21 @@
+// lib/features/reportes/reportes_create.dart
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_it/get_it.dart';
-import '../../core/supabase_service.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 
-// Página completa (con AppBar) que reutiliza el formulario embebible
+import '../../core/supabase_service.dart';
+import '../../core/geocoding_service.dart';
+
 class ReportesCreate extends StatelessWidget {
   const ReportesCreate({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Crear Reporte'),
-      ),
+      appBar: AppBar(title: const Text('Crear Reporte')),
       body: const Padding(
         padding: EdgeInsets.all(16),
         child: ReportesCreateForm(),
@@ -22,7 +24,6 @@ class ReportesCreate extends StatelessWidget {
   }
 }
 
-// Form embebible para usar como popup o dentro de una página
 class ReportesCreateForm extends StatefulWidget {
   final VoidCallback? onSuccess;
   const ReportesCreateForm({Key? key, this.onSuccess}) : super(key: key);
@@ -33,14 +34,23 @@ class ReportesCreateForm extends StatefulWidget {
 
 class _ReportesCreateFormState extends State<ReportesCreateForm> {
   final _formKey = GlobalKey<FormState>();
+  final _geocodingService = GeocodingService();
 
   // Controllers
   final _tituloCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
-  final _latCtrl = TextEditingController();
-  final _lonCtrl = TextEditingController();
   final _direccionCtrl = TextEditingController();
-  final _veracidadCtrl = TextEditingController(); // opcional
+  final _veracidadCtrl = TextEditingController();
+
+  // Coordenadas (se llenan automáticamente)
+  double? _lat;
+  double? _lon;
+  bool _isGeocodingAddress = false;
+  bool _isFetchingLocation = false;
+
+  // Autocomplete/debounce
+  Timer? _addrDebounce;
+  int _geocodeSeq = 0;
 
   // Dropdowns
   final _categorias = const <String>[
@@ -49,7 +59,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     'Vandalismo',
     'Acoso',
     'Accidente',
-    'Asesinato', // tal cual tu sample
+    'Asesinato',
     'Otro',
   ];
   final _estados = const <String>['ACTIVO', 'PENDIENTE', 'CERRADO'];
@@ -59,15 +69,13 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
 
   bool _isSubmitting = false;
 
-  // URL de tu API
   static const String _endpoint = 'http://127.0.0.1:8000/Reportes';
 
   @override
   void dispose() {
+    _addrDebounce?.cancel();
     _tituloCtrl.dispose();
     _descripcionCtrl.dispose();
-    _latCtrl.dispose();
-    _lonCtrl.dispose();
     _direccionCtrl.dispose();
     _veracidadCtrl.dispose();
     super.dispose();
@@ -86,21 +94,74 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
 
   String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'Campo obligatorio' : null;
 
-  // _reqInt eliminado: ya no se ingresa user_id manualmente.
-
-  String? _reqDouble(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Campo obligatorio';
-    final n = double.tryParse(v.trim().replaceAll(',', '.'));
-    if (n == null) return 'Debe ser un número (usa punto decimal)';
-    return null;
-  }
-
   String? _optPercent(String? v) {
     if (v == null || v.trim().isEmpty) return null;
     final n = double.tryParse(v.trim().replaceAll(',', '.'));
     if (n == null) return 'Debe ser un número (0–100)';
     if (n < 0 || n > 100) return 'Debe estar entre 0 y 100';
     return null;
+  }
+
+  void _scheduleGeocode() {
+    _addrDebounce?.cancel();
+    _addrDebounce = Timer(const Duration(milliseconds: 300), () {
+      final txt = _direccionCtrl.text.trim();
+      if (txt.length > 3) _onAddressChanged();
+    });
+  }
+
+  /// Geocodifica la dirección actual del campo (sin SnackBars)
+  Future<void> _onAddressChanged() async {
+    final address = _direccionCtrl.text.trim();
+    if (address.isEmpty) {
+      setState(() {
+        _lat = null;
+        _lon = null;
+      });
+      return;
+    }
+
+    setState(() => _isGeocodingAddress = true);
+    final myReq = ++_geocodeSeq; // descarta respuestas viejas
+
+    try {
+      final result = await _geocodingService.getCoordinatesFromAddress(address);
+
+      if (!mounted || myReq != _geocodeSeq) return;
+
+      if (result != null) {
+        setState(() {
+          _lat = result.latitude;
+          _lon = result.longitude;
+          // Opcional: normalizar texto mostrado
+          // _direccionCtrl.text = result.formattedAddress;
+        });
+      } else {
+        setState(() {
+          _lat = null;
+          _lon = null;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isGeocodingAddress = false);
+    }
+  }
+
+  /// Obtiene la ubicación actual (sin SnackBars)
+  Future<void> _useCurrentLocation() async {
+    setState(() => _isFetchingLocation = true);
+    try {
+      final result = await _geocodingService.getCurrentLocation();
+      if (result != null && mounted) {
+        setState(() {
+          _lat = result.latitude;
+          _lon = result.longitude;
+          _direccionCtrl.text = result.formattedAddress;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isFetchingLocation = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -114,6 +175,12 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     if (_estadoSel == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecciona un estado')),
+      );
+      return;
+    }
+    if (_lat == null || _lon == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ Espera a que se geocodifique la dirección')),
       );
       return;
     }
@@ -134,8 +201,8 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         "titulo": _tituloCtrl.text.trim(),
         "descripcion": _descripcionCtrl.text.trim(),
         "categoria": _categoriaSel,
-        "lat": double.parse(_latCtrl.text.trim().replaceAll(',', '.')),
-        "lon": double.parse(_lonCtrl.text.trim().replaceAll(',', '.')),
+        "lat": _lat,
+        "lon": _lon,
         "direccion": _direccionCtrl.text.trim(),
         "estado": _estadoSel,
         "veracidad_porcentaje": _veracidadCtrl.text.trim().isEmpty
@@ -153,26 +220,19 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Reporte creado con éxito ✅')),
         );
-        // Limpia el formulario
         _formKey.currentState!.reset();
         _categoriaSel = null;
         _estadoSel = 'ACTIVO';
         _tituloCtrl.clear();
         _descripcionCtrl.clear();
-        _latCtrl.clear();
-        _lonCtrl.clear();
         _direccionCtrl.clear();
         _veracidadCtrl.clear();
+        _lat = null;
+        _lon = null;
         setState(() {});
-        // Notifica éxito al padre (si está embebido en un popup)
-        try {
-          widget.onSuccess?.call();
-        } catch (_) {}
-        if (mounted) {
-          Navigator.of(context).maybePop();
-        }
+        widget.onSuccess?.call();
+        if (mounted) Navigator.of(context).maybePop();
       } else {
-        // Muestra el error de la API si existe
         String msg = 'Error ${res.statusCode} al crear el reporte';
         try {
           final body = jsonDecode(res.body);
@@ -180,9 +240,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             msg = body['detail'].toString();
           }
         } catch (_) {}
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -198,6 +256,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     const spacing = 12.0;
     final svc = GetIt.instance<SupabaseService>();
     final descUser = svc.backendUsername ?? 'Usuario #${svc.backendUserId ?? '?'}';
+
     return SafeArea(
       child: Form(
         key: _formKey,
@@ -218,15 +277,13 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                   child: DropdownButtonFormField<String>(
                     value: _estadoSel,
                     decoration: _dec('Estado'),
-                    items: _estados
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
+                    items: _estados.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                     onChanged: (v) => setState(() => _estadoSel = v),
                     validator: (v) => v == null ? 'Campo obligatorio' : null,
                   ),
                 ),
                 const SizedBox(width: 12),
-                Expanded(child: SizedBox.shrink()),
+                const Expanded(child: SizedBox.shrink()),
               ],
             ),
             const SizedBox(height: spacing),
@@ -248,41 +305,94 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             DropdownButtonFormField<String>(
               value: _categoriaSel,
               decoration: _dec('Categoría'),
-              items: _categorias
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
+              items: _categorias.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
               onChanged: (v) => setState(() => _categoriaSel = v),
               validator: (v) => v == null ? 'Campo obligatorio' : null,
             ),
             const SizedBox(height: spacing),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _latCtrl,
-                    decoration: _dec('Latitud', hint: '-12.056'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                    validator: _reqDouble,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _lonCtrl,
-                    decoration: _dec('Longitud', hint: '-77.084'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                    validator: _reqDouble,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: spacing),
-            TextFormField(
+
+            TypeAheadField<String>(
               controller: _direccionCtrl,
-              decoration: _dec('Dirección', hint: 'Ej. LAMOLINGA'),
-              validator: _req,
-              textCapitalization: TextCapitalization.words,
+              suggestionsCallback: (pattern) async {
+                final q = pattern.trim();
+                if (q.length < 3) return const <String>[];   // 👈 mínimo 3 chars
+                return await _geocodingService.searchAddresses(q);
+              },
+
+              // Construye el TextFormField que participa en tu Form
+              builder: (context, controller, focusNode) {
+                return TextFormField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  validator: _req,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: _dec(
+                    'Dirección',
+                    hint: 'Ej. Av. San José 263, Bellavista, Callao, Perú',
+                    suffix: _isGeocodingAddress
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : IconButton(
+                            icon: Icon(_isFetchingLocation ? Icons.location_searching : Icons.my_location),
+                            onPressed: _isFetchingLocation ? null : _useCurrentLocation,
+                            tooltip: 'Usar mi ubicación',
+                          ),
+                  ),
+                  onChanged: (_) => _scheduleGeocode(),
+                );
+              },
+
+              itemBuilder: (context, String suggestion) => ListTile(
+                leading: const Icon(Icons.location_on_outlined),
+                title: Text(suggestion, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+
+              onSelected: (String suggestion) async {
+                _direccionCtrl.text = suggestion;
+                await _onAddressChanged();       // geocodifica la seleccionada
+                FocusScope.of(context).unfocus(); // cierra teclado
+              },
+
+              // Ayudas visuales para depurar
+              loadingBuilder: (_) => const Padding(
+                padding: EdgeInsets.all(12),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              emptyBuilder: (_) => const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('Sin sugerencias'),
+              ),
+              hideOnEmpty: true,
             ),
+
+            // MOSTRAR COORDENADAS (SOLO VISUAL)
+            if (_lat != null && _lon != null) ...[
+              const SizedBox(height: spacing),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ubicación: ${_lat!.toStringAsFixed(4)}, ${_lon!.toStringAsFixed(4)}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: spacing),
             TextFormField(
               controller: _veracidadCtrl,

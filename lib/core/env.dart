@@ -1,3 +1,4 @@
+//sw2_frontend_safe2gether/lib/core/env.dart
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Env {
@@ -14,7 +15,17 @@ class Env {
   /// Ej: http://localhost:5173 (web) o tu deeplink en mobile.
   static String? get supabaseRedirectUrl => dotenv.env['SUPABASE_REDIRECT_URL'];
 
-  static String _missing(String key) {
-    throw Exception('Falta $key en settings.env');
-  }
+ 
+   // ✅ Lee primero del .env; si está vacío, usa --dart-define; si sigue vacío, error.
+  static String get googleMapsApiKey {
+    final v = dotenv.env['GOOGLE_MAPS_API_KEY'];
+    if (v != null && v.isNotEmpty) return v;
+
+    const d = String.fromEnvironment('GOOGLE_MAPS_API_KEY', defaultValue: '');
+    if (d.isNotEmpty) return d;
+
+    return _missing('GOOGLE_MAPS_API_KEY');
+
 }
+}
+String _missing(String key) => throw Exception('Falta $key en settings.env');

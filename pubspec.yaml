@@ -42,6 +42,10 @@ dependencies:
   google_fonts: ^6.2.1
   http: ^1.2.2
   shared_preferences: ^2.3.2
+  google_maps_flutter: ^2.5.0      # Para el mapa
+  geolocator: ^10.1.0               # Para ubicación del usuario
+  geocoding: ^2.1.1                 # Para convertir dirección a coordenadas
+  flutter_typeahead: ^5.0.1         # Para autocompletado de direcciones
 
 dev_dependencies:
   flutter_test:
