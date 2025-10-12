@@ -65,6 +65,10 @@ class SupabaseAuthNotifier extends ChangeNotifier {
 
 void main() async {
   await _setup();
+  // Espera a que SupabaseService restaure el estado de login del backend
+  try {
+    await sl<SupabaseService>().ready;
+  } catch (_) {}
   runApp(const App());
 }
 

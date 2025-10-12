@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../core/api_client.dart';
+import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/supabase_service.dart';
 // Removed unused imports: go_router, env
 
 class ReportesPage extends StatefulWidget {
@@ -74,6 +77,18 @@ class _ReportesPageState extends State<ReportesPage> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              try {
+                await GetIt.instance<SupabaseService>().signOut();
+                if (context.mounted) context.go('/login');
+              } catch (_) {}
+            },
+          ),
+        ],
       ),
       body: FutureBuilder<_PageData>(
         future: _future,
@@ -266,7 +281,7 @@ class _ReportCard extends StatelessWidget {
             ],
             if (report.createdAt != null) ...[
               const SizedBox(height: 8),
-              Text('Creado: ${report.createdAt!.toLocal()}',
+              Text('Creado el: ${report.createdAt!.toLocal()}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
             ],
           ],
