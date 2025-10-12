@@ -1,8 +1,20 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class SupabaseService {
   final SupabaseClient _client;
+  bool _backendLoggedIn = false;
+  // Notifier para que la UI / router pueda reaccionar a cambios del login del backend.
+  final ValueNotifier<bool> backendLoginNotifier = ValueNotifier(false);
+
   SupabaseService(this._client);
+
+  /// Marca que el usuario inició sesión correctamente en el backend propio.
+  bool get backendLoggedIn => _backendLoggedIn;
+  set backendLoggedIn(bool v) {
+    _backendLoggedIn = v;
+    backendLoginNotifier.value = v;
+  }
 
   /// Envía correo de verificación. Si Supabase tiene "Confirm email" activado,
   /// no podrás iniciar sesión hasta confirmar.

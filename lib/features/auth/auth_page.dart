@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // LogicalKeyboardKey
 import '../../core/supabase_service.dart';
 import '../../core/api_client.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/env.dart';
 
 class AuthPage extends StatefulWidget {
@@ -60,13 +61,23 @@ class _AuthPageState extends State<AuthPage> {
   final pass = _password.text;
 
     try {
-      if (_isLogin) {
+        if (_isLogin) {
         // LOGIN: solo backend con user + psswd (no pedimos email en la UI)
         final backend = await _withPhase('Login API', () async {
           return await widget.api.loginBackend(user: user, psswd: pass);
         });
 
         setState(() => _msg = 'RESPONSE LOGIN (API: ${backend['detail'] ?? '200'})');
+
+        // Redirige a /home si la API respondió exitosamente (200) o no devolvió 'status'
+        final code = backend['status'] as int?;
+        if (mounted && (code == null || code == 200)) {
+          // Marca en el servicio que el backend autenticó al usuario
+          try {
+            widget.auth.backendLoggedIn = true;
+          } catch (_) {}
+          context.go('/home');
+        }
 
       } else {
         // REGISTRO: primero Supabase (envía correo), luego tu API (crea fila)

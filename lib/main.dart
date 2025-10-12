@@ -39,14 +39,26 @@ Future<void> _setup() async {
 /// Notificador para que GoRouter reaccione a cambios de sesión
 class SupabaseAuthNotifier extends ChangeNotifier {
   late final StreamSubscription _sub;
+  late final VoidCallback _backendListener;
   SupabaseAuthNotifier() {
     _sub = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
       notifyListeners();
     });
+    // Escucha cambios en el login del backend para refrescar el router
+    try {
+      final svc = sl<SupabaseService>();
+      _backendListener = () => notifyListeners();
+      svc.backendLoginNotifier.addListener(_backendListener);
+    } catch (_) {
+      // no registered yet or other issue
+    }
   }
   @override
   void dispose() {
     _sub.cancel();
+    try {
+      sl<SupabaseService>().backendLoginNotifier.removeListener(_backendListener);
+    } catch (_) {}
     super.dispose();
   }
 }
@@ -104,9 +116,11 @@ class _AppState extends State<App> {
       ],
       redirect: (_, state) {
         final user = Supabase.instance.client.auth.currentUser;
+        final backendOk = sl<SupabaseService>().backendLoggedIn;
         final loggingIn = state.matchedLocation == '/login';
-        if (user == null && !loggingIn) return '/login';   // protege rutas
-        if (user != null && loggingIn) return '/home';
+        // Si no hay sesión Supabase pero el backend propio confirmó login, permite seguir.
+        if (user == null && !loggingIn && !backendOk) return '/login';   // protege rutas
+        if ((user != null || backendOk) && loggingIn) return '/home';
         return null;
       },
     );
