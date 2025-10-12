@@ -76,7 +76,7 @@ class _AuthPageState extends State<AuthPage> {
           try {
             widget.auth.backendLoggedIn = true;
           } catch (_) {}
-          context.go('/home');
+          context.go('/reportes');
         }
 
       } else {
