@@ -1,10 +1,14 @@
+// lib/features/auth/auth_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // LogicalKeyboardKey
 import '../../core/supabase_service.dart';
+import '../../core/api_client.dart';
+import '../../core/env.dart';
 
 class AuthPage extends StatefulWidget {
   final SupabaseService auth;
-  const AuthPage({super.key, required this.auth});
+  final ApiClient api;
+  const AuthPage({super.key, required this.auth, required this.api});
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -12,47 +16,87 @@ class AuthPage extends StatefulWidget {
 
 class _AuthPageState extends State<AuthPage> {
   final _formKey = GlobalKey<FormState>();
+  final _username = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
 
+  final _userNode = FocusNode();
   final _emailNode = FocusNode();
   final _passNode = FocusNode();
 
   bool _isLogin = true;
   bool _busy = false;
   String? _msg;
+  String _fase = '';
 
   @override
   void dispose() {
+    _username.dispose();
     _email.dispose();
     _password.dispose();
+    _userNode.dispose();
     _emailNode.dispose();
     _passNode.dispose();
     super.dispose();
   }
 
+  Future<T> _withPhase<T>(String fase, Future<T> Function() run) async {
+    setState(() => _fase = fase);
+    return await run();
+  }
+
   Future<void> _submit() async {
     if (_busy) return;
-    // validaciones simples
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _busy = true;
       _msg = null;
+      _fase = '';
     });
-    try {
-      final email = _email.text.trim();
-      final pass = _password.text;
 
+    final user = _username.text.trim();
+    final email = _email.text.trim();
+    final pass = _password.text;
+
+    try {
       if (_isLogin) {
-        await widget.auth.signInWithEmail(email, pass);
-        setState(() => _msg = 'OK');
+        // 1) BACKEND PRIMERO → si no existe en tu DB o credenciales inválidas, aquí se corta.
+        final backend = await _withPhase('Login API', () async {
+          return await widget.api.loginBackend(user: user, psswd: pass);
+        });
+
+        // 2) SUPABASE DESPUÉS → exige correo confirmado
+        await _withPhase('Login Supabase', () async {
+          return await widget.auth.signInWithEmail(
+            email,
+            pass,
+            requireConfirmed: true,
+          );
+        });
+
+        setState(() => _msg = 'Login OK (API: ${backend['status'] ?? '200'})');
+
       } else {
-        await widget.auth.signUpWithEmail(email, pass);
-        setState(() => _msg = 'Cuenta creada. Revisa tu correo.');
+        // REGISTRO: primero Supabase (envía correo), luego tu API (crea fila)
+        await _withPhase('Registro Supabase', () async {
+          return await widget.auth.signUpWithEmail(
+            email,
+            pass,
+            redirectTo: Env.supabaseRedirectUrl,
+          );
+        });
+
+        final created = await _withPhase('Registro API', () async {
+          return await widget.api.createUser(user: user, email: email, psswd: pass);
+        });
+
+        setState(() => _msg =
+            'Te enviamos un correo para confirmar. Luego podrás iniciar sesión.\n(API: ${created['status'] ?? '201'})');
       }
-      // No navegamos manualmente: el router reacciona al cambio de sesión.
     } catch (e) {
+      // Si algo falla después de haber creado sesión en Supabase, asegura limpiar.
+      await widget.auth.signOut();
       setState(() => _msg = e.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -63,7 +107,6 @@ class _AuthPageState extends State<AuthPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Atajo global: Enter / NumpadEnter => submit
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.enter): _submit,
@@ -79,7 +122,6 @@ class _AuthPageState extends State<AuthPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // LOGO
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: Image.asset(
@@ -90,10 +132,8 @@ class _AuthPageState extends State<AuthPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      'Safe2Gether',
-                      style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-                    ),
+                    Text('Safe2Gether',
+                        style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 24),
 
                     Card(
@@ -108,7 +148,25 @@ class _AuthPageState extends State<AuthPage> {
                                   style: theme.textTheme.titleLarge),
                               const SizedBox(height: 12),
 
-                              // Email
+                              // Usuario (tu backend lo requiere)
+                              TextFormField(
+                                controller: _username,
+                                focusNode: _userNode,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'Usuario',
+                                  prefixIcon: Icon(Icons.badge_outlined),
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) return 'Ingresa tu usuario';
+                                  if (v.trim().length < 3) return 'Mínimo 3 caracteres';
+                                  return null;
+                                },
+                                onFieldSubmitted: (_) => _emailNode.requestFocus(),
+                              ),
+                              const SizedBox(height: 8),
+
+                              // Email (necesario para Supabase)
                               TextFormField(
                                 controller: _email,
                                 focusNode: _emailNode,
@@ -123,10 +181,7 @@ class _AuthPageState extends State<AuthPage> {
                                   if (!v.contains('@')) return 'Email no válido';
                                   return null;
                                 },
-                                onFieldSubmitted: (_) {
-                                  // Enter en email => mover foco a password
-                                  _passNode.requestFocus();
-                                },
+                                onFieldSubmitted: (_) => _passNode.requestFocus(),
                               ),
                               const SizedBox(height: 8),
 
@@ -145,17 +200,24 @@ class _AuthPageState extends State<AuthPage> {
                                   if (v.length < 6) return 'Mínimo 6 caracteres';
                                   return null;
                                 },
-                                onFieldSubmitted: (_) => _submit(), // Enter en password => enviar
+                                onFieldSubmitted: (_) => _submit(),
                               ),
                               const SizedBox(height: 12),
 
-                              if (_msg != null)
+                              if (_fase.isNotEmpty)
+                                Text('Fase: $_fase', style: const TextStyle(color: Colors.grey)),
+                              if (_msg != null) ...[
+                                const SizedBox(height: 4),
                                 Text(
                                   _msg!,
+                                  textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: _msg == 'OK' ? Colors.green : Colors.red,
+                                    color: _msg!.startsWith('Login OK') || _msg!.startsWith('Te enviamos')
+                                        ? Colors.green
+                                        : Colors.red,
                                   ),
                                 ),
+                              ],
                               const SizedBox(height: 12),
 
                               Row(
@@ -176,7 +238,13 @@ class _AuthPageState extends State<AuthPage> {
                               ),
                               const SizedBox(height: 8),
                               TextButton(
-                                onPressed: _busy ? null : () => setState(() => _isLogin = !_isLogin),
+                                onPressed: _busy
+                                    ? null
+                                    : () => setState(() {
+                                          _isLogin = !_isLogin;
+                                          _msg = null;
+                                          _fase = '';
+                                        }),
                                 child: Text(_isLogin ? '¿Crear cuenta?' : '¿Ya tengo cuenta?'),
                               ),
                             ],

@@ -78,7 +78,7 @@ class _AppState extends State<App> {
         GoRoute(
           path: '/login',
           name: 'login',
-          builder: (_, __) => AuthPage(auth: sl<SupabaseService>()),
+          builder: (_, __) => AuthPage(auth: sl<SupabaseService>(), api: sl<ApiClient>()),
         ),
         GoRoute(
           path: '/home',
