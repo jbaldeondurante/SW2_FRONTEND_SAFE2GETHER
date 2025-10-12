@@ -39,8 +39,8 @@ class _ReportesPageState extends State<ReportesPage> {
         final u = await http.get(Uri.parse('$_base/users/$id'));
         if (u.statusCode == 200) {
           final data = jsonDecode(u.body);
-          names[id] = (data is Map && data['name'] != null)
-              ? data['name'].toString()
+          names[id] = (data is Map && data['user'] != null)
+              ? data['user'].toString()
               : 'Usuario $id';
         } else {
           names[id] = 'Usuario $id';
@@ -62,7 +62,19 @@ class _ReportesPageState extends State<ReportesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Reportes')),
+      backgroundColor: const Color(0xFF0E2D52),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF08192D),
+        foregroundColor: Colors.white,
+        title: SizedBox(
+          height: 36,
+          child: Image.asset(
+            'assets/logo.png',
+            fit: BoxFit.contain,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: FutureBuilder<_PageData>(
         future: _future,
         builder: (context, snap) {

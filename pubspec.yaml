@@ -70,10 +70,11 @@ flutter:
   #   - images/a_dot_ham.jpeg
 
   assets:
-      - settings.env
-      - settings.android.env #Para correr con el back en android
-      #logo
-      - assets/SS.png
+    - settings.env
+    - settings.android.env #Para correr con el back en android
+    #logo
+    - assets/SS.png
+    - assets/logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
