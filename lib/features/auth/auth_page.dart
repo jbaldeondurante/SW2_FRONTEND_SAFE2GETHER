@@ -117,144 +117,146 @@ class _AuthPageState extends State<AuthPage> {
           body: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.asset(
-                        'assets/safe2gether_logo.png',
-                        height: 96,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const FlutterLogo(size: 96),
+              child: SingleChildScrollView(  // ✅ ADDED THIS
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.asset(
+                          'assets/safe2gether_logo.png',
+                          height: 96,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const FlutterLogo(size: 96),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text('Safe2Gether',
-                        style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 12),
+                      Text('Safe2Gether',
+                          style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 24),
 
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(_isLogin ? 'Iniciar sesión' : 'Crear cuenta',
-                                  style: theme.textTheme.titleLarge),
-                              const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(_isLogin ? 'Iniciar sesión' : 'Crear cuenta',
+                                    style: theme.textTheme.titleLarge),
+                                const SizedBox(height: 12),
 
-                              // Usuario (tu backend lo requiere)
-                              TextFormField(
-                                controller: _username,
-                                focusNode: _userNode,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Usuario',
-                                  prefixIcon: Icon(Icons.badge_outlined),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) return 'Ingresa tu usuario';
-                                  if (v.trim().length < 3) return 'Mínimo 3 caracteres';
-                                  return null;
-                                },
-                                onFieldSubmitted: (_) => _emailNode.requestFocus(),
-                              ),
-                              const SizedBox(height: 8),
-
-                              // Email (necesario para Supabase)
-                              TextFormField(
-                                controller: _email,
-                                focusNode: _emailNode,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Email',
-                                  prefixIcon: Icon(Icons.email_outlined),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) return 'Ingresa tu email';
-                                  if (!v.contains('@')) return 'Email no válido';
-                                  return null;
-                                },
-                                onFieldSubmitted: (_) => _passNode.requestFocus(),
-                              ),
-                              const SizedBox(height: 8),
-
-                              // Password
-                              TextFormField(
-                                controller: _password,
-                                focusNode: _passNode,
-                                obscureText: true,
-                                textInputAction: TextInputAction.done,
-                                decoration: const InputDecoration(
-                                  labelText: 'Password',
-                                  prefixIcon: Icon(Icons.lock_outline),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) return 'Ingresa tu contraseña';
-                                  if (v.length < 6) return 'Mínimo 6 caracteres';
-                                  return null;
-                                },
-                                onFieldSubmitted: (_) => _submit(),
-                              ),
-                              const SizedBox(height: 12),
-
-                              if (_fase.isNotEmpty)
-                                Text('Fase: $_fase', style: const TextStyle(color: Colors.grey)),
-                              if (_msg != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  _msg!,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: _msg!.startsWith('Login OK') || _msg!.startsWith('Te enviamos')
-                                        ? Colors.green
-                                        : Colors.red,
+                                // Usuario (tu backend lo requiere)
+                                TextFormField(
+                                  controller: _username,
+                                  focusNode: _userNode,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Usuario',
+                                    prefixIcon: Icon(Icons.badge_outlined),
                                   ),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) return 'Ingresa tu usuario';
+                                    if (v.trim().length < 3) return 'Mínimo 3 caracteres';
+                                    return null;
+                                  },
+                                  onFieldSubmitted: (_) => _emailNode.requestFocus(),
                                 ),
-                              ],
-                              const SizedBox(height: 12),
+                                const SizedBox(height: 8),
 
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: FilledButton(
-                                      onPressed: _busy ? null : _submit,
-                                      child: _busy
-                                          ? const SizedBox(
-                                              height: 20,
-                                              width: 20,
-                                              child: CircularProgressIndicator(strokeWidth: 2),
-                                            )
-                                          : Text(_isLogin ? 'Entrar' : 'Crear cuenta'),
+                                // Email (necesario para Supabase)
+                                TextFormField(
+                                  controller: _email,
+                                  focusNode: _emailNode,
+                                  keyboardType: TextInputType.emailAddress,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Email',
+                                    prefixIcon: Icon(Icons.email_outlined),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) return 'Ingresa tu email';
+                                    if (!v.contains('@')) return 'Email no válido';
+                                    return null;
+                                  },
+                                  onFieldSubmitted: (_) => _passNode.requestFocus(),
+                                ),
+                                const SizedBox(height: 8),
+
+                                // Password
+                                TextFormField(
+                                  controller: _password,
+                                  focusNode: _passNode,
+                                  obscureText: true,
+                                  textInputAction: TextInputAction.done,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Password',
+                                    prefixIcon: Icon(Icons.lock_outline),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.isEmpty) return 'Ingresa tu contraseña';
+                                    if (v.length < 6) return 'Mínimo 6 caracteres';
+                                    return null;
+                                  },
+                                  onFieldSubmitted: (_) => _submit(),
+                                ),
+                                const SizedBox(height: 12),
+
+                                if (_fase.isNotEmpty)
+                                  Text('Fase: $_fase', style: const TextStyle(color: Colors.grey)),
+                                if (_msg != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _msg!,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: _msg!.startsWith('Login OK') || _msg!.startsWith('Te enviamos')
+                                          ? Colors.green
+                                          : Colors.red,
                                     ),
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 8),
-                              TextButton(
-                                onPressed: _busy
-                                    ? null
-                                    : () => setState(() {
-                                          _isLogin = !_isLogin;
-                                          _msg = null;
-                                          _fase = '';
-                                        }),
-                                child: Text(_isLogin ? '¿Crear cuenta?' : '¿Ya tengo cuenta?'),
-                              ),
-                            ],
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton(
+                                        onPressed: _busy ? null : _submit,
+                                        child: _busy
+                                            ? const SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                              )
+                                            : Text(_isLogin ? 'Entrar' : 'Crear cuenta'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: _busy
+                                      ? null
+                                      : () => setState(() {
+                                            _isLogin = !_isLogin;
+                                            _msg = null;
+                                            _fase = '';
+                                          }),
+                                  child: Text(_isLogin ? '¿Crear cuenta?' : '¿Ya tengo cuenta?'),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ),  // ✅ CLOSED SingleChildScrollView here
             ),
           ),
         ),
