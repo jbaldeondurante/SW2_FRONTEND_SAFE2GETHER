@@ -5,6 +5,9 @@ import 'env.dart';
 
 class ApiClient {
   final Dio _dio;
+  // Token de backend (bearer) establecido tras un login exitoso contra tu API.
+  // Si está presente, se usará como Authorization en lugar del token de Supabase.
+  static String? backendAccessToken;
 
   ApiClient._(this._dio);
 
@@ -21,12 +24,17 @@ class ApiClient {
       ),
     );
 
-    // Añade Bearer si hay sesión (para endpoints protegidos)
+    // Añade Bearer si hay sesión (prioriza token del backend si existe)
     dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
-      final session = Supabase.instance.client.auth.currentSession;
-      final accessToken = session?.accessToken;
-      if (accessToken != null && accessToken.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $accessToken';
+      final backendToken = ApiClient.backendAccessToken;
+      if (backendToken != null && backendToken.isNotEmpty) {
+        options.headers['Authorization'] = 'Bearer $backendToken';
+      } else {
+        final session = Supabase.instance.client.auth.currentSession;
+        final accessToken = session?.accessToken;
+        if (accessToken != null && accessToken.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $accessToken';
+        }
       }
       handler.next(options);
     }));
@@ -49,7 +57,10 @@ class ApiClient {
   Map<String, dynamic> _asMap(Response res) {
     if (res.data == null) return {'status': res.statusCode};
     if (res.data is Map<String, dynamic>) {
-      return res.data as Map<String, dynamic>;
+      final map = Map<String, dynamic>.from(res.data as Map<String, dynamic>);
+      // Asegura que siempre devolvemos el status HTTP.
+      map.putIfAbsent('status', () => res.statusCode);
+      return map;
     }
     final s = res.data.toString();
     if (s.isEmpty) return {'status': res.statusCode};

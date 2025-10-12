@@ -61,21 +61,43 @@ class _AuthPageState extends State<AuthPage> {
   final pass = _password.text;
 
     try {
-        if (_isLogin) {
+      if (_isLogin) {
         // LOGIN: solo backend con user + psswd (no pedimos email en la UI)
         final backend = await _withPhase('Login API', () async {
           return await widget.api.loginBackend(user: user, psswd: pass);
         });
 
-  setState(() => _msg = 'RESPONSE LOGIN (API: ${backend['detail'] ?? '200'})');
+        // Éxito si viene access_token y no hay detail
+        final code = backend['status'] as int?; // lo inyecta ApiClient
+        String? detail;
+        if (backend['detail'] is String) {
+          detail = backend['detail'] as String;
+        } else if (backend['data'] is Map) {
+          final m = backend['data'] as Map;
+          if (m['detail'] is String) detail = m['detail'] as String;
+        } else if (backend['data'] is List) {
+          final list = backend['data'] as List;
+          if (list.isNotEmpty && list.first is Map && (list.first as Map)['detail'] is String) {
+            detail = (list.first as Map)['detail'] as String;
+          }
+        }
 
-        // Redirige a /home si la API respondió exitosamente (200) o no devolvió 'status'
-        final code = backend['status'] as int?;
-        if (mounted && (code == null || code == 200)) {
-          // Marca en el servicio que el backend autenticó al usuario
+        final token = backend['access_token'] as String? ??
+            (backend['data'] is Map ? (backend['data'] as Map)['access_token'] as String? : null);
+        final hasToken = token != null && token.isNotEmpty;
+        final ok = (code == 200 || code == null) && hasToken && detail == null;
+        if (!ok) {
+          setState(() => _msg = 'Login fallido: ${detail ?? 'respuesta inválida de la API'}');
+          return;
+        }
+
+        // Éxito: guardar datos y navegar
+        setState(() => _msg = 'Login OK');
+        if (mounted) {
           try {
             widget.auth.backendLoggedIn = true;
-            // soportar respuestas: { user_id }, { id }, { user: { id } }, { data: { user_id } }, { data: { user: { id } } }
+
+            // ID de usuario
             dynamic id = backend['user_id'] ?? backend['id'] ?? backend['userId'];
             if (id == null && backend['data'] is Map) {
               final m = backend['data'] as Map;
@@ -92,14 +114,25 @@ class _AuthPageState extends State<AuthPage> {
               final parsed = int.tryParse(id);
               if (parsed != null) widget.auth.backendUserId = parsed;
             }
-            final uname = backend['user'] ?? backend['username'] ?? backend['name'];
-            if (uname is String && uname.isNotEmpty) {
-              widget.auth.backendUsername = uname;
+
+            // Username (puede venir en user.user / user.username / name)
+            String? uname;
+            if (backend['user'] is Map) {
+              final um = backend['user'] as Map;
+              final candidate = um['user'] ?? um['username'] ?? um['name'];
+              if (candidate is String) uname = candidate;
+            }
+            uname ??= (backend['username'] ?? backend['name']) as String?;
+            if (uname != null && uname.isNotEmpty) widget.auth.backendUsername = uname;
+
+            // Guardar access_token del backend
+            if (hasToken) {
+              widget.auth.backendAccessToken = token;
+              ApiClient.backendAccessToken = token;
             }
           } catch (_) {}
           context.go('/reportes');
         }
-
       } else {
         // REGISTRO: primero Supabase (envía correo), luego tu API (crea fila)
         await _withPhase('Registro Supabase', () async {
@@ -114,8 +147,8 @@ class _AuthPageState extends State<AuthPage> {
           return await widget.api.createUser(user: user, email: email, psswd: pass);
         });
 
-    setState(() => _msg =
-      'Te enviamos un correo para confirmar. Luego podrás iniciar sesión.\n(API: ${created['status'] ?? '201'})');
+        setState(() => _msg =
+            'Te enviamos un correo para confirmar. Luego podrás iniciar sesión.\n(API: ${created['status'] ?? '201'})');
       }
     } catch (e) {
       // Si algo falla después de haber creado sesión en Supabase, asegura limpiar.

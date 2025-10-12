@@ -7,6 +7,7 @@ class SupabaseService {
   bool _backendLoggedIn = false;
   int? _backendUserId;
   String? _backendUsername;
+  String? _backendAccessToken;
   // Notifier para que la UI / router pueda reaccionar a cambios del login del backend.
   final ValueNotifier<bool> backendLoginNotifier = ValueNotifier(false);
   // Señal para indicar que la restauración inicial terminó
@@ -36,9 +37,16 @@ class SupabaseService {
     _persistBackendUsername(u);
   }
 
+  String? get backendAccessToken => _backendAccessToken;
+  set backendAccessToken(String? t) {
+    _backendAccessToken = t;
+    _persistBackendToken(t);
+  }
+
   static const _kBackendLoginKey = 'backend_logged_in';
   static const _kBackendUserIdKey = 'backend_user_id';
   static const _kBackendUsernameKey = 'backend_username';
+  static const _kBackendTokenKey = 'backend_token';
   Future<void> _persistBackendLogin(bool v) async {
     try {
       final sp = await SharedPreferences.getInstance();
@@ -68,6 +76,17 @@ class SupabaseService {
     } catch (_) {}
   }
 
+  Future<void> _persistBackendToken(String? t) async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (t == null || t.isEmpty) {
+        await sp.remove(_kBackendTokenKey);
+      } else {
+        await sp.setString(_kBackendTokenKey, t);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _restoreBackendLogin() async {
     try {
       final sp = await SharedPreferences.getInstance();
@@ -76,6 +95,7 @@ class SupabaseService {
       backendLoginNotifier.value = v;
       _backendUserId = sp.getInt(_kBackendUserIdKey);
       _backendUsername = sp.getString(_kBackendUsernameKey);
+      _backendAccessToken = sp.getString(_kBackendTokenKey);
     } catch (_) {}
   }
 
@@ -125,5 +145,6 @@ class SupabaseService {
     backendLoggedIn = false; // will persist and notify
     backendUserId = null;
     backendUsername = null;
+    backendAccessToken = null;
   }
 }
