@@ -55,27 +55,18 @@ class _AuthPageState extends State<AuthPage> {
       _fase = '';
     });
 
-    final user = _username.text.trim();
-    final email = _email.text.trim();
-    final pass = _password.text;
+  final user = _username.text.trim();
+  final email = _email.text.trim();
+  final pass = _password.text;
 
     try {
       if (_isLogin) {
-        // 1) BACKEND PRIMERO → si no existe en tu DB o credenciales inválidas, aquí se corta.
+        // LOGIN: solo backend con user + psswd (no pedimos email en la UI)
         final backend = await _withPhase('Login API', () async {
           return await widget.api.loginBackend(user: user, psswd: pass);
         });
 
-        // 2) SUPABASE DESPUÉS → exige correo confirmado
-        await _withPhase('Login Supabase', () async {
-          return await widget.auth.signInWithEmail(
-            email,
-            pass,
-            requireConfirmed: true,
-          );
-        });
-
-        setState(() => _msg = 'Login OK (API: ${backend['status'] ?? '200'})');
+        setState(() => _msg = 'RESPONSE LOGIN (API: ${backend['detail'] ?? '200'})');
 
       } else {
         // REGISTRO: primero Supabase (envía correo), luego tu API (crea fila)
@@ -91,8 +82,8 @@ class _AuthPageState extends State<AuthPage> {
           return await widget.api.createUser(user: user, email: email, psswd: pass);
         });
 
-        setState(() => _msg =
-            'Te enviamos un correo para confirmar. Luego podrás iniciar sesión.\n(API: ${created['status'] ?? '201'})');
+    setState(() => _msg =
+      'Te enviamos un correo para confirmar. Luego podrás iniciar sesión.\n(API: ${created['status'] ?? '201'})');
       }
     } catch (e) {
       // Si algo falla después de haber creado sesión en Supabase, asegura limpiar.
@@ -163,28 +154,29 @@ class _AuthPageState extends State<AuthPage> {
                                     if (v.trim().length < 3) return 'Mínimo 3 caracteres';
                                     return null;
                                   },
-                                  onFieldSubmitted: (_) => _emailNode.requestFocus(),
+                                  onFieldSubmitted: (_) => _isLogin ? _passNode.requestFocus() : _emailNode.requestFocus(),
                                 ),
                                 const SizedBox(height: 8),
-
-                                // Email (necesario para Supabase)
-                                TextFormField(
-                                  controller: _email,
-                                  focusNode: _emailNode,
-                                  keyboardType: TextInputType.emailAddress,
-                                  textInputAction: TextInputAction.next,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Email',
-                                    prefixIcon: Icon(Icons.email_outlined),
+                                if (!_isLogin) ...[
+                                  // Email (necesario solo para registro en Supabase)
+                                  TextFormField(
+                                    controller: _email,
+                                    focusNode: _emailNode,
+                                    keyboardType: TextInputType.emailAddress,
+                                    textInputAction: TextInputAction.next,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Email',
+                                      prefixIcon: Icon(Icons.email_outlined),
+                                    ),
+                                    validator: (v) {
+                                      if (v == null || v.trim().isEmpty) return 'Ingresa tu email';
+                                      if (!v.contains('@')) return 'Email no válido';
+                                      return null;
+                                    },
+                                    onFieldSubmitted: (_) => _passNode.requestFocus(),
                                   ),
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) return 'Ingresa tu email';
-                                    if (!v.contains('@')) return 'Email no válido';
-                                    return null;
-                                  },
-                                  onFieldSubmitted: (_) => _passNode.requestFocus(),
-                                ),
-                                const SizedBox(height: 8),
+                                  const SizedBox(height: 8),
+                                ],
 
                                 // Password
                                 TextFormField(
