@@ -72,7 +72,7 @@ flutter:
       - settings.env
       - settings.android.env #Para correr con el back en android
       #logo
-      - assets/safe2gether_logo.png
+      - assets/SS.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

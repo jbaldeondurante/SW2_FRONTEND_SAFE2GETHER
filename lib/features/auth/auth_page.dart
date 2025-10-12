@@ -105,6 +105,7 @@ class _AuthPageState extends State<AuthPage> {
       },
       child: FocusTraversalGroup(
         child: Scaffold(
+          backgroundColor: const Color(0xFF08192D),
           body: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
@@ -117,16 +118,14 @@ class _AuthPageState extends State<AuthPage> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
                         child: Image.asset(
-                          'assets/safe2gether_logo.png',
-                          height: 96,
+                          'assets/SS.png',
+                          height: 85,
                           fit: BoxFit.contain,
                           errorBuilder: (_, __, ___) => const FlutterLogo(size: 96),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Text('Safe2Gether',
-                          style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 24),
+            const SizedBox(height: 12),
+           
 
                       Card(
                         child: Padding(
@@ -217,20 +216,28 @@ class _AuthPageState extends State<AuthPage> {
                                   children: [
                                     Expanded(
                                       child: FilledButton(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: const Color(0xFF9B080C),
+                                          foregroundColor: Colors.white,
+                                        ),
                                         onPressed: _busy ? null : _submit,
                                         child: _busy
                                             ? const SizedBox(
                                                 height: 20,
                                                 width: 20,
-                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                               )
-                                            : Text(_isLogin ? 'Entrar' : 'Crear cuenta'),
+                                            : Text(
+                                                _isLogin ? 'Entrar' : 'Crear cuenta',
+                                                style: const TextStyle(color: Colors.white),
+                                              ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 TextButton(
+                                  style: TextButton.styleFrom(foregroundColor: Colors.white),
                                   onPressed: _busy
                                       ? null
                                       : () => setState(() {
@@ -238,7 +245,10 @@ class _AuthPageState extends State<AuthPage> {
                                             _msg = null;
                                             _fase = '';
                                           }),
-                                  child: Text(_isLogin ? '¿Crear cuenta?' : '¿Ya tengo cuenta?'),
+                                  child: Text(
+                                    _isLogin ? '¿Crear cuenta?' : '¿Ya tengo cuenta?',
+                                    style: const TextStyle(color: Color(0xFF9B080C)),
+                                  ),
                                 ),
                               ],
                             ),
