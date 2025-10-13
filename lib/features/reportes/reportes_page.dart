@@ -127,31 +127,58 @@ class _ReportesPageState extends State<ReportesPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
-            return _ErrorView(
-              message: snap.error.toString(),
-              onRetry: _refresh,
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: _ErrorView(
+                  message: snap.error.toString(),
+                  onRetry: _refresh,
+                ),
+              ),
             );
           }
           final data = snap.data!;
           if (data.reports.isEmpty) {
             return RefreshIndicator(
               onRefresh: _refresh,
-              child: ListView(children: const [
-                SizedBox(height: 200),
-                Center(child: Text('No hay reportes')),
-              ]),
+              child: ListView(
+                children: [
+                  const SizedBox(height: 48),
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 900),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Column(
+                          children: const [
+                            SizedBox(height: 200),
+                            Center(child: Text('No hay reportes')),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             );
           }
           return RefreshIndicator(
             onRefresh: _refresh,
-            child: ListView.separated(
-              padding: const EdgeInsets.all(12),
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 12),
               itemCount: data.reports.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) {
+              itemBuilder: (context, i) {
                 final r = data.reports[i];
                 final user = data.userNames[r.userId] ?? 'Usuario ${r.userId}';
-                return _ReportCard(report: r, userName: user);
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: _ReportCard(report: r, userName: user),
+                    ),
+                  ),
+                );
               },
             ),
           );
