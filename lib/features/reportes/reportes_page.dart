@@ -80,6 +80,11 @@ class _ReportesPageState extends State<ReportesPage> {
         centerTitle: true,
         actions: [
           IconButton(
+            tooltip: 'Mapa de calor (Lima)',
+            icon: const Icon(Icons.map_outlined),
+            onPressed: () => context.push('/mapa'),
+          ),
+          IconButton(
             tooltip: 'Nuevo reporte',
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () async {

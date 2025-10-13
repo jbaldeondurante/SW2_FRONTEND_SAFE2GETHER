@@ -80,6 +80,7 @@ flutter:
     #logo
     - assets/SS.png
     - assets/logo.png
+    - assets/geo/lima_distritos.geojson
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
