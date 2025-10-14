@@ -34,6 +34,15 @@ class _ReportesPageState extends State<ReportesPage> {
     }
     final List<dynamic> raw = jsonDecode(r.body);
     final reports = raw.map((e) => Report.fromJson(e as Map<String, dynamic>)).toList();
+    // Ordenar del más reciente al más antiguo
+    reports.sort((a, b) {
+      final ta = a.createdAt;
+      final tb = b.createdAt;
+      if (tb != null && ta != null) return tb.compareTo(ta); // desc
+      if (tb != null) return 1; // a sin fecha va después
+      if (ta != null) return -1; // b sin fecha va después
+      return b.id.compareTo(a.id); // fallback por id desc
+    });
 
     // Traer nombres de usuario (sin duplicados)
     final ids = reports.map((e) => e.userId).toSet();
@@ -62,9 +71,16 @@ class _ReportesPageState extends State<ReportesPage> {
       for (final adj in adjuntos) {
         if (adj is Map<String, dynamic> && adj['reporte_id'] != null && adj['url'] != null) {
           final tipo = adj['tipo']?.toString().toLowerCase();
-          if (tipo == 'foto' || tipo == 'imagen') {
+          final url = (adj['url'] as String).toString();
+          // Aceptar varios tipos comunes y, si no hay tipo, inferir por extensión de la URL
+          const tiposValidos = {'foto','imagen','image','img','picture','photo'};
+          final lowerUrl = url.toLowerCase();
+          const exts = ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg','.heic','.heif'];
+          final looksLikeImage = exts.any((e) => lowerUrl.contains(e));
+
+          if ((tipo != null && tiposValidos.contains(tipo)) || (tipo == null || tipo.isEmpty) && looksLikeImage) {
             final rid = adj['reporte_id'] as int;
-            imagenesPorReporte.putIfAbsent(rid, () => []).add(adj['url'] as String);
+            imagenesPorReporte.putIfAbsent(rid, () => []).add(url);
           }
         }
       }
@@ -319,32 +335,6 @@ class _ReportCard extends StatelessWidget {
                 Flexible(child: Text(userName, style: const TextStyle(fontWeight: FontWeight.w600))),
               ],
             ),
-            if (imagenes != null && imagenes!.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 180,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: imagenes!.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (ctx, idx) => ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      imagenes![idx],
-                      height: 180,
-                      width: 220,
-                      fit: BoxFit.cover,
-                      errorBuilder: (ctx, err, stack) => Container(
-                        height: 180,
-                        width: 220,
-                        color: Colors.grey[200],
-                        child: const Center(child: Icon(Icons.broken_image, size: 40)),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
             const SizedBox(height: 8),
             Text(
               report.descripcion.trim().isEmpty ? 'Sin descripción' : report.descripcion.trim(),
@@ -352,6 +342,38 @@ class _ReportCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 10),
+            if (imagenes != null && imagenes!.isNotEmpty) ...[
+              SizedBox(
+                height: 180,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: imagenes!.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (ctx, idx) {
+                    final url = imagenes![idx];
+                    return GestureDetector(
+                      onTap: () => _openImageViewer(ctx, imagenes!, startIndex: idx),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          url,
+                          height: 180,
+                          width: 220,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, stack) => Container(
+                            height: 180,
+                            width: 220,
+                            color: Colors.grey[200],
+                            child: const Center(child: Icon(Icons.broken_image, size: 40)),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -388,6 +410,70 @@ class _ReportCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+void _openImageViewer(BuildContext context, List<String> urls, {int startIndex = 0}) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => _ImageViewer(urls: urls, initialIndex: startIndex),
+    ),
+  );
+}
+
+class _ImageViewer extends StatefulWidget {
+  final List<String> urls;
+  final int initialIndex;
+  const _ImageViewer({Key? key, required this.urls, this.initialIndex = 0}) : super(key: key);
+
+  @override
+  State<_ImageViewer> createState() => _ImageViewerState();
+}
+
+class _ImageViewerState extends State<_ImageViewer> {
+  late final PageController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text('${widget.initialIndex + 1}/${widget.urls.length}'),
+      ),
+      body: PageView.builder(
+        controller: _controller,
+        itemCount: widget.urls.length,
+        itemBuilder: (_, i) {
+          final url = widget.urls[i];
+          return Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4,
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white70, size: 64),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

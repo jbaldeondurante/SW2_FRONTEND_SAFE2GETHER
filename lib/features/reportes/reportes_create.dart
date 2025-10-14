@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:get_it/get_it.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
@@ -44,7 +45,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   final _descripcionCtrl = TextEditingController();
   final _direccionCtrl = TextEditingController();
   final _veracidadCtrl = TextEditingController();
-  File? _imageFile;
   double? _lat;
   double? _lon;
   bool _isGeocodingAddress = false;
@@ -57,6 +57,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   String? _estadoSel = 'ACTIVO';
   bool _isSubmitting = false;
   static const String _endpoint = 'http://127.0.0.1:8000/Reportes';
+  static const String _adjuntoEndpoint = 'http://127.0.0.1:8000/Adjunto';
   String? _uploadedImageUrl;
 
   @override
@@ -146,32 +147,88 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   Future<void> _pickAndUploadImageWeb() async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image == null) {
-      return;
+    if (image == null) return;
+    // En Web, image.path puede no tener extensión (p.ej., 'blob'), usar image.name.
+  String ext;
+  final mimeHint = image.mimeType; // e.g., image/png, image/jpeg
+    if (image.name.contains('.')) {
+      ext = image.name.split('.').last.toLowerCase();
+    } else {
+      // fallback seguro para inline render
+      ext = 'jpeg';
     }
-    final imageExtension = image.path.split('.').last.toLowerCase();
-    final imageBytes = await image.readAsBytes();
-    final userId = Supabase.instance.client.auth.currentUser?.id ?? 'anon';
-    final imagePath = '${userId}_reporte_${DateTime.now().millisecondsSinceEpoch}.$imageExtension';
+    final bytes = await image.readAsBytes();
+    // Si el mimeType viene del picker, úsalo para forzar content-type correcto
+    // Prefer a valid image/* mime; if missing or octet-stream, compute from extension
+    String? finalMime = mimeHint;
+    if (finalMime == null || finalMime.isEmpty || finalMime == 'application/octet-stream' || !finalMime.startsWith('image/')) {
+      finalMime = _mimeFromExt(ext);
+    }
+    await _uploadBytes(bytes, ext, originalName: image.name, overrideMime: finalMime);
+  }
+
+  Future<void> _pickAndUploadImageMobile() async {
+    final picker = ImagePicker();
+    // imageQuality fuerza re-encoding a JPEG en iOS/Android, evitando HEIC/HEIF
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 95);
+    if (pickedFile == null) return;
+    // Al comprimir (imageQuality) normalmente obtenemos JPEG; forzamos a JPG para servir inline
+    String ext = 'jpg';
+    final bytes = await File(pickedFile.path).readAsBytes();
+    await _uploadBytes(bytes, ext, originalName: pickedFile.name, overrideMime: 'image/jpeg');
+  }
+
+  String _mimeFromExt(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+      case 'jpe':
+      case 'jfif':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
+      default:
+        // fallback a imagen para evitar descarga como archivo
+        return 'image/jpeg';
+    }
+  }
+
+  Future<void> _uploadBytes(Uint8List bytes, String ext, {String? originalName, String? overrideMime}) async {
+    // Opción B: RLS para anónimos en carpeta public/PostImages
+  final ts = DateTime.now().microsecondsSinceEpoch;
+    final sanitized = (originalName ?? 'image').replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    // Asegurar extensión acorde al 'ext' provisto (evita .heic que el browser no muestra)
+    final dot = sanitized.lastIndexOf('.');
+    final base = dot > 0 ? sanitized.substring(0, dot) : sanitized;
+    final fileName = '${ts}_$base.$ext';
+    final path = 'public/PostImages/$fileName';
+    final mime = overrideMime != null && overrideMime.isNotEmpty ? overrideMime : _mimeFromExt(ext);
     try {
       await Supabase.instance.client.storage.from('adjuntos').uploadBinary(
-        imagePath,
-        imageBytes,
+        path,
+        bytes,
         fileOptions: FileOptions(
           upsert: true,
-          contentType: 'image/$imageExtension',
+          contentType: mime,
         ),
       );
-      String imageUrl = Supabase.instance.client.storage.from('adjuntos').getPublicUrl(imagePath);
-      imageUrl = Uri.parse(imageUrl).replace(queryParameters: {
-        't': DateTime.now().millisecondsSinceEpoch.toString()
-      }).toString();
-      setState(() {
-        _uploadedImageUrl = imageUrl;
-      });
+      var imageUrl = Supabase.instance.client.storage.from('adjuntos').getPublicUrl(path);
+      imageUrl = Uri.parse(imageUrl)
+          .replace(queryParameters: {'t': DateTime.now().millisecondsSinceEpoch.toString()}).toString();
+      if (!mounted) return;
+      setState(() => _uploadedImageUrl = imageUrl);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imagen subida correctamente')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo subir la imagen')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo subir la imagen: ${e.toString()}')),
+      );
     }
   }
 
@@ -213,11 +270,34 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         body: jsonEncode(payload),
       );
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        final body = jsonDecode(res.body);
-        final reporteId = body['id'] ?? body['reporte_id'];
-        if (_uploadedImageUrl != null && reporteId != null) {
-          await _uploadAdjunto(reporteId, _uploadedImageUrl!);
-          print('Adjunto creado en la tabla Adjuntos');
+        // Paso 4: si hay imagen subida, registrar adjunto en backend
+        try {
+          final created = jsonDecode(res.body);
+          final reporteId = created is Map ? created['id'] as int? : null;
+          if (reporteId != null && _uploadedImageUrl != null) {
+            final adjPayload = {
+              'reporte_id': reporteId,
+              'url': _uploadedImageUrl,
+              'tipo': 'image',
+            };
+            final adjRes = await http.post(
+              Uri.parse(_adjuntoEndpoint),
+              headers: {"Content-Type": "application/json"},
+              body: jsonEncode(adjPayload),
+            );
+            if (adjRes.statusCode < 200 || adjRes.statusCode >= 300) {
+              // No bloquear el flujo si falla, solo avisar
+              String msg = 'Adjunto no registrado (HTTP ${adjRes.statusCode})';
+              try {
+                final body = jsonDecode(adjRes.body);
+                if (body is Map && body['detail'] != null) msg = body['detail'].toString();
+              } catch (_) {}
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+            }
+          }
+        } catch (e) {
+          // Continuar aunque falle el registro del adjunto
+          debugPrint('Fallo al registrar adjunto: $e');
         }
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte creado con éxito ✅')));
         setState(() {
@@ -230,7 +310,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
           _veracidadCtrl.clear();
           _lat = null;
           _lon = null;
-          _imageFile = null;
           _uploadedImageUrl = null;
         });
         widget.onSuccess?.call();
@@ -252,24 +331,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     }
   }
 
-  Future<void> _uploadAdjunto(dynamic reporteId, String imageUrl) async {
-    final payload = {
-    "reporte_id": reporteId,
-    "url": imageUrl,
-    "tipo": "imagen"
-  };
-    final res = await http.post(
-      Uri.parse('http://127.0.0.1:8000/Adjunto'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(payload),
-    );
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      final data = jsonDecode(res.body);
-      print('Adjunto creado: ${data['url']}');
-    } else {
-      print('Error al subir adjunto: ${res.statusCode}');
-    }
-  }
+  // Eliminado: no se usa registro de adjuntos por backend en este flujo
 
   @override
   Widget build(BuildContext context) {
@@ -324,15 +386,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             ElevatedButton.icon(
               icon: const Icon(Icons.photo_library),
               label: const Text('Adjuntar imagen'),
-              onPressed: kIsWeb ? _pickAndUploadImageWeb : () async {
-                final picker = ImagePicker();
-                final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-                if (pickedFile != null) {
-                  setState(() {
-                    _imageFile = File(pickedFile.path);
-                  });
-                }
-              },
+              onPressed: kIsWeb ? _pickAndUploadImageWeb : _pickAndUploadImageMobile,
             ),
             if (_uploadedImageUrl != null)
               Padding(
