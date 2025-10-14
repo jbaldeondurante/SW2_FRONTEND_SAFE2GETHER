@@ -1,8 +1,59 @@
+import 'dart:io';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
 
 class SupabaseService {
+  /// Sube una imagen al bucket 'adjuntos' y retorna la URL pública
+  Future<String?> uploadImage(File imageFile) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final fileName = 'reportes/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}';
+      final response = await supabase.storage.from('adjuntos').upload(fileName, imageFile);
+      // Si la subida fue exitosa, response es la ruta del archivo
+      if (response is String && response.isNotEmpty) {
+        final publicUrl = supabase.storage.from('adjuntos').getPublicUrl(fileName);
+        return publicUrl;
+      } else {
+        print('Error al subir imagen: $response');
+        return null;
+      }
+    } catch (e) {
+      print('Excepción al subir imagen: $e');
+      return null;
+    }
+  }
+
+  /// Sube una imagen a Supabase Storage y retorna la URL pública
+  Future<String?> uploadImageWeb() async {
+    try {
+      // Selecciona archivo desde el navegador
+      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      if (result == null || result.files.isEmpty) return null;
+      final file = result.files.first;
+      final bytes = file.bytes;
+      if (bytes == null) return null;
+      final supabase = Supabase.instance.client;
+      // Genera nombre seguro para el archivo
+      final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$safeName';
+      final response = await supabase.storage.from('adjuntos').uploadBinary(fileName, bytes);
+      if (response is String && response.isNotEmpty) {
+        final publicUrl = supabase.storage.from('adjuntos').getPublicUrl(fileName);
+        return publicUrl;
+      } else {
+        print('Error al subir imagen (web): $response');
+        return null;
+      }
+    } catch (e) {
+      print('Excepción al subir imagen (web): $e');
+      return null;
+    }
+  }
+
   final SupabaseClient _client;
   bool _backendLoggedIn = false;
   int? _backendUserId;

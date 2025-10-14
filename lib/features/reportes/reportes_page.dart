@@ -54,7 +54,23 @@ class _ReportesPageState extends State<ReportesPage> {
       }
     }));
 
-    return _PageData(reports: reports, userNames: names);
+    // Traer adjuntos (imagenes) y cruzar por reporte_id
+    final adjRes = await http.get(Uri.parse('$_base/Adjunto'));
+    final imagenesPorReporte = <int, List<String>>{};
+    if (adjRes.statusCode == 200) {
+      final adjuntos = jsonDecode(adjRes.body) as List<dynamic>;
+      for (final adj in adjuntos) {
+        if (adj is Map<String, dynamic> && adj['reporte_id'] != null && adj['url'] != null) {
+          final tipo = adj['tipo']?.toString().toLowerCase();
+          if (tipo == 'foto' || tipo == 'imagen') {
+            final rid = adj['reporte_id'] as int;
+            imagenesPorReporte.putIfAbsent(rid, () => []).add(adj['url'] as String);
+          }
+        }
+      }
+    }
+
+    return _PageData(reports: reports, userNames: names, imagenesPorReporte: imagenesPorReporte);
   }
 
   Future<void> _refresh() async {
@@ -170,12 +186,13 @@ class _ReportesPageState extends State<ReportesPage> {
               itemBuilder: (context, i) {
                 final r = data.reports[i];
                 final user = data.userNames[r.userId] ?? 'Usuario ${r.userId}';
+                final imagenes = data.imagenesPorReporte[r.id];
                 return Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 900),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: _ReportCard(report: r, userName: user),
+                      child: _ReportCard(report: r, userName: user, imagenes: imagenes),
                     ),
                   ),
                 );
@@ -241,13 +258,15 @@ class Report {
 class _PageData {
   final List<Report> reports;
   final Map<int, String> userNames;
-  _PageData({required this.reports, required this.userNames});
+  final Map<int, List<String>> imagenesPorReporte; // reporte_id -> lista de urls
+  _PageData({required this.reports, required this.userNames, required this.imagenesPorReporte});
 }
 
 class _ReportCard extends StatelessWidget {
   final Report report;
   final String userName;
-  const _ReportCard({Key? key, required this.report, required this.userName}) : super(key: key);
+  final List<String>? imagenes;
+  const _ReportCard({Key? key, required this.report, required this.userName, this.imagenes}) : super(key: key);
 
   Color _estadoColor(String s) {
     switch (s.toUpperCase()) {
@@ -283,8 +302,8 @@ class _ReportCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Chip(
                   label: Text(report.estado),
-                  backgroundColor: _estadoColor(report.estado).withValues(alpha: 0.12),
-                  side: BorderSide(color: _estadoColor(report.estado).withValues(alpha: 0.4)),
+                  backgroundColor: _estadoColor(report.estado).withOpacity(0.12),
+                  side: BorderSide(color: _estadoColor(report.estado).withOpacity(0.4)),
                   labelStyle: TextStyle(
                     color: _estadoColor(report.estado),
                     fontWeight: FontWeight.w600,
@@ -300,6 +319,32 @@ class _ReportCard extends StatelessWidget {
                 Flexible(child: Text(userName, style: const TextStyle(fontWeight: FontWeight.w600))),
               ],
             ),
+            if (imagenes != null && imagenes!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 180,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: imagenes!.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (ctx, idx) => ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      imagenes![idx],
+                      height: 180,
+                      width: 220,
+                      fit: BoxFit.cover,
+                      errorBuilder: (ctx, err, stack) => Container(
+                        height: 180,
+                        width: 220,
+                        color: Colors.grey[200],
+                        child: const Center(child: Icon(Icons.broken_image, size: 40)),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               report.descripcion.trim().isEmpty ? 'Sin descripción' : report.descripcion.trim(),

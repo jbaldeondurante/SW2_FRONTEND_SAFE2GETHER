@@ -2,9 +2,13 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:get_it/get_it.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/supabase_service.dart';
 import '../../core/geocoding_service.dart';
@@ -32,44 +36,28 @@ class ReportesCreateForm extends StatefulWidget {
   State<ReportesCreateForm> createState() => _ReportesCreateFormState();
 }
 
+
 class _ReportesCreateFormState extends State<ReportesCreateForm> {
   final _formKey = GlobalKey<FormState>();
   final _geocodingService = GeocodingService();
-
-  // Controllers
   final _tituloCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
   final _direccionCtrl = TextEditingController();
   final _veracidadCtrl = TextEditingController();
-
-  // Coordenadas (se llenan automáticamente)
+  File? _imageFile;
   double? _lat;
   double? _lon;
   bool _isGeocodingAddress = false;
   bool _isFetchingLocation = false;
-
-  // Autocomplete/debounce
   Timer? _addrDebounce;
   int _geocodeSeq = 0;
-
-  // Dropdowns
-  final _categorias = const <String>[
-    'Robo',
-    'Asalto',
-    'Vandalismo',
-    'Acoso',
-    'Accidente',
-    'Asesinato',
-    'Otro',
-  ];
+  final _categorias = const <String>['Robo','Asalto','Vandalismo','Acoso','Accidente','Asesinato','Otro'];
   final _estados = const <String>['ACTIVO', 'PENDIENTE', 'CERRADO'];
-
   String? _categoriaSel;
   String? _estadoSel = 'ACTIVO';
-
   bool _isSubmitting = false;
-
   static const String _endpoint = 'http://127.0.0.1:8000/Reportes';
+  String? _uploadedImageUrl;
 
   @override
   void dispose() {
@@ -109,8 +97,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
       if (txt.length > 3) _onAddressChanged();
     });
   }
-
-  /// Geocodifica la dirección actual del campo (sin SnackBars)
   Future<void> _onAddressChanged() async {
     final address = _direccionCtrl.text.trim();
     if (address.isEmpty) {
@@ -120,21 +106,15 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
       });
       return;
     }
-
     setState(() => _isGeocodingAddress = true);
-    final myReq = ++_geocodeSeq; // descarta respuestas viejas
-
+    final myReq = ++_geocodeSeq;
     try {
       final result = await _geocodingService.getCoordinatesFromAddress(address);
-
       if (!mounted || myReq != _geocodeSeq) return;
-
       if (result != null) {
         setState(() {
           _lat = result.latitude;
           _lon = result.longitude;
-          // Opcional: normalizar texto mostrado
-          // _direccionCtrl.text = result.formattedAddress;
         });
       } else {
         setState(() {
@@ -147,7 +127,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     }
   }
 
-  /// Obtiene la ubicación actual (sin SnackBars)
   Future<void> _useCurrentLocation() async {
     setState(() => _isFetchingLocation = true);
     try {
@@ -164,38 +143,59 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     }
   }
 
+  Future<void> _pickAndUploadImageWeb() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image == null) {
+      return;
+    }
+    final imageExtension = image.path.split('.').last.toLowerCase();
+    final imageBytes = await image.readAsBytes();
+    final userId = Supabase.instance.client.auth.currentUser?.id ?? 'anon';
+    final imagePath = '${userId}_reporte_${DateTime.now().millisecondsSinceEpoch}.$imageExtension';
+    try {
+      await Supabase.instance.client.storage.from('adjuntos').uploadBinary(
+        imagePath,
+        imageBytes,
+        fileOptions: FileOptions(
+          upsert: true,
+          contentType: 'image/$imageExtension',
+        ),
+      );
+      String imageUrl = Supabase.instance.client.storage.from('adjuntos').getPublicUrl(imagePath);
+      imageUrl = Uri.parse(imageUrl).replace(queryParameters: {
+        't': DateTime.now().millisecondsSinceEpoch.toString()
+      }).toString();
+      setState(() {
+        _uploadedImageUrl = imageUrl;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imagen subida correctamente')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo subir la imagen')));
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_categoriaSel == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona una categoría')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona una categoría')));
       return;
     }
     if (_estadoSel == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona un estado')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona un estado')));
       return;
     }
     if (_lat == null || _lon == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ Espera a que se geocodifique la dirección')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Espera a que se geocodifique la dirección')));
       return;
     }
-
     setState(() => _isSubmitting = true);
-
     try {
       final currentUserId = GetIt.instance<SupabaseService>().backendUserId;
       if (currentUserId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No hay usuario autenticado.')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay usuario autenticado.')));
         return;
       }
-
       final payload = {
         "user_id": currentUserId,
         "titulo": _tituloCtrl.text.trim(),
@@ -205,31 +205,34 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         "lon": _lon,
         "direccion": _direccionCtrl.text.trim(),
         "estado": _estadoSel,
-        "veracidad_porcentaje": _veracidadCtrl.text.trim().isEmpty
-            ? null
-            : double.parse(_veracidadCtrl.text.trim().replaceAll(',', '.')),
+        "veracidad_porcentaje": _veracidadCtrl.text.trim().isEmpty ? null : double.parse(_veracidadCtrl.text.trim().replaceAll(',', '.')),
       };
-
       final res = await http.post(
         Uri.parse(_endpoint),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(payload),
       );
-
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reporte creado con éxito ✅')),
-        );
-        _formKey.currentState!.reset();
-        _categoriaSel = null;
-        _estadoSel = 'ACTIVO';
-        _tituloCtrl.clear();
-        _descripcionCtrl.clear();
-        _direccionCtrl.clear();
-        _veracidadCtrl.clear();
-        _lat = null;
-        _lon = null;
-        setState(() {});
+        final body = jsonDecode(res.body);
+        final reporteId = body['id'] ?? body['reporte_id'];
+        if (_uploadedImageUrl != null && reporteId != null) {
+          await _uploadAdjunto(reporteId, _uploadedImageUrl!);
+          print('Adjunto creado en la tabla Adjuntos');
+        }
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte creado con éxito ✅')));
+        setState(() {
+          _formKey.currentState!.reset();
+          _categoriaSel = null;
+          _estadoSel = 'ACTIVO';
+          _tituloCtrl.clear();
+          _descripcionCtrl.clear();
+          _direccionCtrl.clear();
+          _veracidadCtrl.clear();
+          _lat = null;
+          _lon = null;
+          _imageFile = null;
+          _uploadedImageUrl = null;
+        });
         widget.onSuccess?.call();
         if (mounted) Navigator.of(context).maybePop();
       } else {
@@ -243,11 +246,28 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo conectar con el servidor: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo conectar con el servidor: $e')));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _uploadAdjunto(dynamic reporteId, String imageUrl) async {
+    final payload = {
+    "reporte_id": reporteId,
+    "url": imageUrl,
+    "tipo": "imagen"
+  };
+    final res = await http.post(
+      Uri.parse('http://127.0.0.1:8000/Adjunto'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(payload),
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = jsonDecode(res.body);
+      print('Adjunto creado: ${data['url']}');
+    } else {
+      print('Error al subir adjunto: ${res.statusCode}');
     }
   }
 
@@ -256,8 +276,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     const spacing = 12.0;
     final svc = GetIt.instance<SupabaseService>();
     final descUser = svc.backendUsername ?? 'Usuario #${svc.backendUserId ?? '?'}';
-
-    return SafeArea(
+      return SafeArea(
       child: Form(
         key: _formKey,
         child: ListView(
@@ -289,7 +308,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             const SizedBox(height: spacing),
             TextFormField(
               controller: _tituloCtrl,
-              decoration: _dec('Título', hint: 'Ej. ASALTO EN CASA DE MILEÑE'),
+              decoration: _dec('Título', hint: 'Ej. ASALTO EN CASA DE EÑE'),
               validator: _req,
               textCapitalization: TextCapitalization.sentences,
             ),
@@ -301,6 +320,25 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               maxLines: 4,
               textCapitalization: TextCapitalization.sentences,
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.photo_library),
+              label: const Text('Adjuntar imagen'),
+              onPressed: kIsWeb ? _pickAndUploadImageWeb : () async {
+                final picker = ImagePicker();
+                final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                if (pickedFile != null) {
+                  setState(() {
+                    _imageFile = File(pickedFile.path);
+                  });
+                }
+              },
+            ),
+            if (_uploadedImageUrl != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Image.network(_uploadedImageUrl!, height: 120),
+              ),
             const SizedBox(height: spacing),
             DropdownButtonFormField<String>(
               value: _categoriaSel,
@@ -310,17 +348,14 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               validator: (v) => v == null ? 'Campo obligatorio' : null,
             ),
             const SizedBox(height: spacing),
-
-            TypeAheadField<String>(
+             TypeAheadField<String>(
               controller: _direccionCtrl,
               suggestionsCallback: (pattern) async {
                 final q = pattern.trim();
-                if (q.length < 3) return const <String>[];   // 👈 mínimo 3 chars
+                if (q.length < 3) return const <String>[];
                 return await _geocodingService.searchAddresses(q);
               },
-
-              // Construye el TextFormField que participa en tu Form
-              builder: (context, controller, focusNode) {
+               builder: (context, controller, focusNode) {
                 return TextFormField(
                   controller: controller,
                   focusNode: focusNode,
@@ -344,20 +379,16 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                   onChanged: (_) => _scheduleGeocode(),
                 );
               },
-
-              itemBuilder: (context, String suggestion) => ListTile(
+                itemBuilder: (context, String suggestion) => ListTile(
                 leading: const Icon(Icons.location_on_outlined),
                 title: Text(suggestion, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
-
-              onSelected: (String suggestion) async {
+                onSelected: (String suggestion) async {
                 _direccionCtrl.text = suggestion;
-                await _onAddressChanged();       // geocodifica la seleccionada
-                FocusScope.of(context).unfocus(); // cierra teclado
+                await _onAddressChanged();
+                FocusScope.of(context).unfocus();
               },
-
-              // Ayudas visuales para depurar
-              loadingBuilder: (_) => const Padding(
+                loadingBuilder: (_) => const Padding(
                 padding: EdgeInsets.all(12),
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
@@ -367,9 +398,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               ),
               hideOnEmpty: true,
             ),
-
-            // MOSTRAR COORDENADAS (SOLO VISUAL)
-            if (_lat != null && _lon != null) ...[
+              if (_lat != null && _lon != null) ...[
               const SizedBox(height: spacing),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -392,8 +421,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                 ),
               ),
             ],
-
-            const SizedBox(height: spacing),
+              const SizedBox(height: spacing),
             TextFormField(
               controller: _veracidadCtrl,
               decoration: _dec('Veracidad (%) - Opcional', hint: '0 a 100'),
