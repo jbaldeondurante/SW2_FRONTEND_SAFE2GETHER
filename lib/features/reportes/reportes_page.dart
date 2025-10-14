@@ -120,7 +120,7 @@ class _ReportesPageState extends State<ReportesPage> {
             tooltip: 'Nuevo reporte',
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () async {
-              await showDialog(
+              final result = await showDialog<bool>(
                 context: context,
                 builder: (ctx) {
                   return AlertDialog(
@@ -128,16 +128,14 @@ class _ReportesPageState extends State<ReportesPage> {
                     contentPadding: const EdgeInsets.all(16),
                     content: SizedBox(
                       width: 420,
-                      child: ReportesCreateForm(
-                        onSuccess: () {
-                          // refrescar al cerrar
-                          _refresh();
-                        },
-                      ),
+                      child: ReportesCreateForm(),
                     ),
                   );
                 },
               );
+              if (result == true) {
+                _refresh();
+              }
             },
           ),
           IconButton(

@@ -312,8 +312,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
           _lon = null;
           _uploadedImageUrl = null;
         });
-        widget.onSuccess?.call();
-        if (mounted) Navigator.of(context).maybePop();
+  if (mounted) Navigator.of(context).pop(true);
       } else {
         String msg = 'Error ${res.statusCode} al crear el reporte';
         try {
