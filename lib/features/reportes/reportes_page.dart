@@ -28,6 +28,7 @@ class _ReportesPageState extends State<ReportesPage> {
   }
 
   Future<_PageData> _fetchAll() async {
+    final currentUserId = GetIt.instance<SupabaseService>().backendUserId;
     final r = await http.get(Uri.parse('$_base/Reportes'));
     if (r.statusCode != 200) {
       throw Exception('HTTP ${r.statusCode} al obtener Reportes');
@@ -86,7 +87,34 @@ class _ReportesPageState extends State<ReportesPage> {
       }
     }
 
-    return _PageData(reports: reports, userNames: names, imagenesPorReporte: imagenesPorReporte);
+    // Traer reacciones del usuario (si está logueado en backend)
+    final userReactions = <int, _UserReaction>{};
+    if (currentUserId != null) {
+      try {
+        final rr = await http.get(Uri.parse('$_base/Reacciones/user/$currentUserId'));
+        if (rr.statusCode == 200) {
+          final list = jsonDecode(rr.body) as List<dynamic>;
+          for (final it in list) {
+            if (it is Map<String, dynamic>) {
+              final rid = it['reporte_id'] as int?;
+              final id = it['id'] as int?;
+              final tipo = (it['tipo'] as String?)?.toLowerCase();
+              if (rid != null && id != null && (tipo == 'upvote' || tipo == 'downvote')) {
+                userReactions[rid] = _UserReaction(id: id, tipo: tipo!);
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    return _PageData(
+      reports: reports,
+      userNames: names,
+      imagenesPorReporte: imagenesPorReporte,
+      userReactions: userReactions,
+      currentUserId: currentUserId,
+    );
   }
 
   Future<void> _refresh() async {
@@ -201,12 +229,19 @@ class _ReportesPageState extends State<ReportesPage> {
                 final r = data.reports[i];
                 final user = data.userNames[r.userId] ?? 'Usuario ${r.userId}';
                 final imagenes = data.imagenesPorReporte[r.id];
+                final reaction = data.userReactions[r.id];
                 return Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 900),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: _ReportCard(report: r, userName: user, imagenes: imagenes),
+                      child: _ReportCard(
+                        report: r,
+                        userName: user,
+                        imagenes: imagenes,
+                        userReaction: reaction,
+                        currentUserId: data.currentUserId,
+                      ),
                     ),
                   ),
                 );
@@ -229,6 +264,8 @@ class Report {
   final String direccion;
   final String estado;
   final double? veracidad;
+  final int upvotes;
+  final int downvotes;
   final int id;
   final DateTime? createdAt;
 
@@ -243,6 +280,8 @@ class Report {
     required this.estado,
     required this.veracidad,
     required this.id,
+    required this.upvotes,
+    required this.downvotes,
     required this.createdAt,
   });
 
@@ -264,6 +303,8 @@ class Report {
       estado: '${j['estado'] ?? ''}',
       veracidad: asD(j['veracidad_porcentaje']),
       id: j['id'] as int,
+      upvotes: (j['cantidad_upvotes'] as int?) ?? 0,
+      downvotes: (j['cantidad_downvotes'] as int?) ?? 0,
       createdAt: asT(j['created_at']),
     );
   }
@@ -273,14 +314,46 @@ class _PageData {
   final List<Report> reports;
   final Map<int, String> userNames;
   final Map<int, List<String>> imagenesPorReporte; // reporte_id -> lista de urls
-  _PageData({required this.reports, required this.userNames, required this.imagenesPorReporte});
+  final Map<int, _UserReaction> userReactions; // reporte_id -> reaccion del usuario
+  final int? currentUserId;
+  _PageData({required this.reports, required this.userNames, required this.imagenesPorReporte, required this.userReactions, required this.currentUserId});
 }
 
-class _ReportCard extends StatelessWidget {
+class _UserReaction {
+  final int id;
+  final String tipo; // 'upvote' | 'downvote'
+  const _UserReaction({required this.id, required this.tipo});
+}
+
+class _ReportCard extends StatefulWidget {
   final Report report;
   final String userName;
   final List<String>? imagenes;
-  const _ReportCard({Key? key, required this.report, required this.userName, this.imagenes}) : super(key: key);
+  final _UserReaction? userReaction;
+  final int? currentUserId;
+  const _ReportCard({Key? key, required this.report, required this.userName, this.imagenes, this.userReaction, this.currentUserId}) : super(key: key);
+
+  @override
+  State<_ReportCard> createState() => _ReportCardState();
+}
+
+class _ReportCardState extends State<_ReportCard> {
+  static const String _base = 'http://127.0.0.1:8000';
+  late int _upvotes;
+  late int _downvotes;
+  bool _updatingUp = false;
+  bool _updatingDown = false;
+  int? _reactionId; // id en tabla Reaccion
+  String? _reactionTipo; // 'upvote' | 'downvote' | null
+
+  @override
+  void initState() {
+    super.initState();
+    _upvotes = widget.report.upvotes;
+    _downvotes = widget.report.downvotes;
+    _reactionId = widget.userReaction?.id;
+    _reactionTipo = widget.userReaction?.tipo;
+  }
 
   Color _estadoColor(String s) {
     switch (s.toUpperCase()) {
@@ -292,9 +365,134 @@ class _ReportCard extends StatelessWidget {
     }
   }
 
+  Future<void> _vote({required bool up}) async {
+    if (widget.currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Inicia sesión para votar')));
+      return;
+    }
+    if (up && _updatingUp) return;
+    if (!up && _updatingDown) return;
+
+    final wasTipo = _reactionTipo; // estado previo
+    final wasId = _reactionId;
+    // Calcular nuevo estado y contadores optimistas
+  String? newTipo = wasTipo;
+    int upvotes = _upvotes;
+    int downvotes = _downvotes;
+
+    if (up) {
+      if (wasTipo == 'upvote') {
+        // toggle off upvote
+        newTipo = null;
+        upvotes = (_upvotes - 1).clamp(0, 1 << 31);
+      } else if (wasTipo == 'downvote') {
+        // cambiar down->up
+        newTipo = 'upvote';
+        upvotes = _upvotes + 1;
+        downvotes = (_downvotes - 1).clamp(0, 1 << 31);
+      } else {
+        // no había reacción, crear upvote
+        newTipo = 'upvote';
+        upvotes = _upvotes + 1;
+      }
+    } else {
+      if (wasTipo == 'downvote') {
+        // toggle off downvote
+        newTipo = null;
+        downvotes = (_downvotes - 1).clamp(0, 1 << 31);
+      } else if (wasTipo == 'upvote') {
+        // cambiar up->down
+        newTipo = 'downvote';
+        upvotes = (_upvotes - 1).clamp(0, 1 << 31);
+        downvotes = _downvotes + 1;
+      } else {
+        // no había reacción, crear downvote
+        newTipo = 'downvote';
+        downvotes = _downvotes + 1;
+      }
+    }
+
+    setState(() {
+      if (up) _updatingUp = true; else _updatingDown = true;
+      _upvotes = upvotes;
+      _downvotes = downvotes;
+      _reactionTipo = newTipo;
+    });
+
+    try {
+      // 1) Persistir reaccion
+      if (newTipo == null) {
+        // eliminar reaccion existente
+        if (wasId != null) {
+          final del = await http.delete(Uri.parse('$_base/Reacciones/$wasId'));
+          if (del.statusCode < 200 || del.statusCode >= 300) {
+            throw Exception('DELETE reaccion HTTP ${del.statusCode}');
+          }
+          _reactionId = null;
+        }
+      } else if (wasId == null) {
+        // crear nueva
+        final res = await http.post(
+          Uri.parse('$_base/Reacciones'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'reporte_id': widget.report.id,
+            'user_id': widget.currentUserId,
+            'tipo': newTipo,
+          }),
+        );
+        if (res.statusCode != 201) {
+          throw Exception('POST reaccion HTTP ${res.statusCode}');
+        }
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        _reactionId = data['id'] as int?;
+        _reactionTipo = newTipo;
+      } else {
+        // actualizar tipo existente
+        final res = await http.patch(
+          Uri.parse('$_base/Reacciones/$wasId'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'tipo': newTipo}),
+        );
+        if (res.statusCode != 200) {
+          throw Exception('PATCH reaccion HTTP ${res.statusCode}');
+        }
+        _reactionId = wasId;
+        _reactionTipo = newTipo;
+      }
+
+      // 2) Persistir contadores del reporte
+      final patchBody = <String, dynamic>{
+        'cantidad_upvotes': _upvotes,
+        'cantidad_downvotes': _downvotes,
+      };
+      final pr = await http.patch(
+        Uri.parse('$_base/Reportes/${widget.report.id}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(patchBody),
+      );
+      if (pr.statusCode != 200) {
+        throw Exception('PATCH reporte HTTP ${pr.statusCode}');
+      }
+    } catch (e) {
+      // revertir a estado previo
+      setState(() {
+        _reactionTipo = wasTipo;
+        _reactionId = wasId;
+        _upvotes = widget.report.upvotes;
+        _downvotes = widget.report.downvotes;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo registrar tu voto: $e')));
+    } finally {
+      setState(() {
+        if (up) _updatingUp = false; else _updatingDown = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final v = report.veracidad;
+    final v = widget.report.veracidad;
     final vTxt = v == null ? '—' : '${v.toStringAsFixed(0)}%';
     return Card(
       elevation: 0.5,
@@ -309,17 +507,17 @@ class _ReportCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    report.titulo.isEmpty ? 'Reporte #${report.id}' : report.titulo,
+                    widget.report.titulo.isEmpty ? 'Reporte #${widget.report.id}' : widget.report.titulo,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Chip(
-                  label: Text(report.estado),
-                  backgroundColor: _estadoColor(report.estado).withOpacity(0.12),
-                  side: BorderSide(color: _estadoColor(report.estado).withOpacity(0.4)),
+                  label: Text(widget.report.estado),
+                  backgroundColor: _estadoColor(widget.report.estado).withOpacity(0.12),
+                  side: BorderSide(color: _estadoColor(widget.report.estado).withOpacity(0.4)),
                   labelStyle: TextStyle(
-                    color: _estadoColor(report.estado),
+                    color: _estadoColor(widget.report.estado),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -330,27 +528,27 @@ class _ReportCard extends StatelessWidget {
               children: [
                 const Icon(Icons.person, size: 18),
                 const SizedBox(width: 6),
-                Flexible(child: Text(userName, style: const TextStyle(fontWeight: FontWeight.w600))),
+                Flexible(child: Text(widget.userName, style: const TextStyle(fontWeight: FontWeight.w600))),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              report.descripcion.trim().isEmpty ? 'Sin descripción' : report.descripcion.trim(),
+              widget.report.descripcion.trim().isEmpty ? 'Sin descripción' : widget.report.descripcion.trim(),
               maxLines: 5,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 10),
-            if (imagenes != null && imagenes!.isNotEmpty) ...[
+            if (widget.imagenes != null && widget.imagenes!.isNotEmpty) ...[
               SizedBox(
                 height: 180,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: imagenes!.length,
+                  itemCount: widget.imagenes!.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (ctx, idx) {
-                    final url = imagenes![idx];
+                    final url = widget.imagenes![idx];
                     return GestureDetector(
-                      onTap: () => _openImageViewer(ctx, imagenes!, startIndex: idx),
+                      onTap: () => _openImageViewer(ctx, widget.imagenes!, startIndex: idx),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
@@ -379,7 +577,7 @@ class _ReportCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    report.direccion.isEmpty ? 'Dirección no especificada' : report.direccion,
+                    widget.report.direccion.isEmpty ? 'Dirección no especificada' : widget.report.direccion,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -401,9 +599,45 @@ class _ReportCard extends StatelessWidget {
                 child: LinearProgressIndicator(value: (v.clamp(0, 100)) / 100.0, minHeight: 8),
               ),
             ],
-            if (report.createdAt != null) ...[
+            const SizedBox(height: 12),
+            // Votos tipo Reddit
+            Row(
+              children: [
+                // Upvote
+                SizedBox(
+                  height: 36,
+                  child: FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _reactionTipo == 'upvote' ? Theme.of(context).colorScheme.primary.withOpacity(0.15) : null,
+                    ),
+                    onPressed: _updatingUp ? null : () => _vote(up: true),
+                    icon: _updatingUp
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : Icon(_reactionTipo == 'upvote' ? Icons.thumb_up_alt : Icons.thumb_up_alt_outlined),
+                    label: Text('$_upvotes'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Downvote
+                SizedBox(
+                  height: 36,
+                  child: FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      foregroundColor: Colors.red[800],
+                      backgroundColor: _reactionTipo == 'downvote' ? Colors.red.withOpacity(0.12) : null,
+                    ),
+                    onPressed: _updatingDown ? null : () => _vote(up: false),
+                    icon: _updatingDown
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : Icon(_reactionTipo == 'downvote' ? Icons.thumb_down_alt : Icons.thumb_down_alt_outlined),
+                    label: Text('$_downvotes'),
+                  ),
+                ),
+              ],
+            ),
+            if (widget.report.createdAt != null) ...[
               const SizedBox(height: 8),
-              Text('Creado el: ${report.createdAt!.toLocal()}',
+              Text('Creado el: ${widget.report.createdAt!.toLocal()}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
             ],
           ],

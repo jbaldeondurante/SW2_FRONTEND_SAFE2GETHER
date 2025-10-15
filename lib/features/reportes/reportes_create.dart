@@ -263,6 +263,8 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         "direccion": _direccionCtrl.text.trim(),
         "estado": _estadoSel,
         "veracidad_porcentaje": _veracidadCtrl.text.trim().isEmpty ? null : double.parse(_veracidadCtrl.text.trim().replaceAll(',', '.')),
+        "cantidad_upvotes": 0,
+        "cantidad_downvotes": 0,
       };
       final res = await http.post(
         Uri.parse(_endpoint),
