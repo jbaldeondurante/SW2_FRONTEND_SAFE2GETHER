@@ -1,6 +1,10 @@
 # Front Safe2gether
 
-20.
+Para poder inicializar el proyecto debes tener:
+
+- Backend del proyecto: https://github.com/piero0702/SW2_BACKEND_SAFE2GETHER-
+- El siguiente comando:
+``` flutter run -d edge --web-port=52802 ``` 
 
 ## Getting Started
 
