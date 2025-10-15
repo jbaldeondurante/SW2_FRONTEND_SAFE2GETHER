@@ -153,17 +153,18 @@ class _AppState extends State<App> {
         final user = Supabase.instance.client.auth.currentUser;
         final backendOk = sl<SupabaseService>().backendLoggedIn;
         final loggingIn = state.matchedLocation == '/login';
-        final resettingPassword = state.matchedLocation == '/password-reset'; // 🆕
+        final resettingPassword =
+            state.matchedLocation == '/password-reset'; // 🆕
 
         // 🆕 Permitir acceso a password-reset sin autenticación
         if (resettingPassword) return null;
 
         // Si no hay sesión Supabase y backend no ha confirmado, fuerza /login
         if (user == null && !loggingIn && !backendOk) return '/login';
-        
+
         // Si ya hay sesión (o backend OK) y estás en /login, redirige a /home
         if ((user != null || backendOk) && loggingIn) return '/home';
-        
+
         return null;
       },
     );

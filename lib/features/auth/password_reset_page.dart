@@ -47,7 +47,9 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
 
     try {
       final res = await http.get(
-        Uri.parse('${Env.apiBaseUrl}/users/password/validate-token/${widget.token}'),
+        Uri.parse(
+          '${Env.apiBaseUrl}/users/password/validate-token/${widget.token}',
+        ),
       );
 
       if (res.statusCode == 200) {
@@ -233,8 +235,8 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                             ),
                           )
                         : _isResetMode
-                            ? _buildResetForm()
-                            : _buildRequestForm(),
+                        ? _buildResetForm()
+                        : _buildRequestForm(),
                   ),
                 ),
               ],
@@ -252,11 +254,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.lock_reset,
-            size: 64,
-            color: Color(0xFF9B080C),
-          ),
+          const Icon(Icons.lock_reset, size: 64, color: Color(0xFF9B080C)),
           const SizedBox(height: 16),
           Text(
             '¿Olvidaste tu contraseña?',
@@ -266,9 +264,9 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
           const SizedBox(height: 8),
           Text(
             'Ingresa tu email y te enviaremos un link para recuperarla',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -299,9 +297,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                     ? Colors.red.withOpacity(0.1)
                     : Colors.green.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _isError ? Colors.red : Colors.green,
-                ),
+                border: Border.all(color: _isError ? Colors.red : Colors.green),
               ),
               child: Row(
                 children: [
@@ -358,11 +354,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.lock_open,
-            size: 64,
-            color: Color(0xFF9B080C),
-          ),
+          const Icon(Icons.lock_open, size: 64, color: Color(0xFF9B080C)),
           const SizedBox(height: 16),
           Text(
             'Nueva contraseña',
@@ -373,9 +365,9 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
           if (_validatedEmail != null)
             Text(
               'Para: $_validatedEmail',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
           const SizedBox(height: 24),
@@ -407,7 +399,8 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
             ),
             validator: (v) {
               if (v == null || v.isEmpty) return 'Confirma tu contraseña';
-              if (v != _passwordCtrl.text) return 'Las contraseñas no coinciden';
+              if (v != _passwordCtrl.text)
+                return 'Las contraseñas no coinciden';
               return null;
             },
           ),
@@ -423,9 +416,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                     ? Colors.red.withOpacity(0.1)
                     : Colors.green.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _isError ? Colors.red : Colors.green,
-                ),
+                border: Border.all(color: _isError ? Colors.red : Colors.green),
               ),
               child: Row(
                 children: [

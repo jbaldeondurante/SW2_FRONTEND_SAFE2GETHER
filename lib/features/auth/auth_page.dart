@@ -300,7 +300,9 @@ class _AuthPageState extends State<AuthPage> {
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: TextButton(
-                                      onPressed: _busy ? null : () => context.go('/password-reset'),
+                                      onPressed: _busy
+                                          ? null
+                                          : () => context.go('/password-reset'),
                                       child: const Text(
                                         '¿Olvidaste tu contraseña?',
                                         style: TextStyle(
@@ -313,7 +315,6 @@ class _AuthPageState extends State<AuthPage> {
                                 ],
 
                                 const SizedBox(height: 12),
-
 
                                 const SizedBox(height: 12),
 

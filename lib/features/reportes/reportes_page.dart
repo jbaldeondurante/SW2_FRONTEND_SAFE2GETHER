@@ -846,9 +846,7 @@ class _ReportCardState extends State<_ReportCard> {
                 }
               },
               icon: Icon(
-                _commentsOpen
-                    ? Icons.expand_less
-                    : Icons.comment_outlined,
+                _commentsOpen ? Icons.expand_less : Icons.comment_outlined,
                 size: 18,
               ),
               label: Text(
@@ -882,12 +880,14 @@ class _ReportCardState extends State<_ReportCard> {
             else
               Column(
                 children: _comments
-                    .map((c) => _CommentTile(
-                          userName: _usersCache[c.userId] ??
-                              'Usuario ${c.userId}',
-                          message: c.mensaje,
-                          createdAt: c.createdAt,
-                        ))
+                    .map(
+                      (c) => _CommentTile(
+                        userName:
+                            _usersCache[c.userId] ?? 'Usuario ${c.userId}',
+                        message: c.mensaje,
+                        createdAt: c.createdAt,
+                      ),
+                    )
                     .toList(),
               ),
             const SizedBox(height: 8),
@@ -946,16 +946,17 @@ class _ReportCardState extends State<_ReportCard> {
   Future<void> _loadComments() async {
     setState(() => _loadingComments = true);
     try {
-      final res = await http
-          .get(Uri.parse('$_base/Comentarios/reporte/${widget.report.id}'));
+      final res = await http.get(
+        Uri.parse('$_base/Comentarios/reporte/${widget.report.id}'),
+      );
       if (res.statusCode != 200) {
         throw Exception('HTTP ${res.statusCode} al obtener comentarios');
       }
-    final List<dynamic> list = jsonDecode(res.body) as List<dynamic>;
-    final List<_Comment> parsed = list
-      .whereType<Map<String, dynamic>>()
-      .map((e) => _Comment.fromJson(e))
-      .toList();
+      final List<dynamic> list = jsonDecode(res.body) as List<dynamic>;
+      final List<_Comment> parsed = list
+          .whereType<Map<String, dynamic>>()
+          .map((e) => _Comment.fromJson(e))
+          .toList();
       // Orden por fecha asc (antiguo->reciente)
       parsed.sort((a, b) {
         final ta = a.createdAt;
@@ -969,21 +970,23 @@ class _ReportCardState extends State<_ReportCard> {
       // Cargar nombres de usuario faltantes
       final Set<int> missingIds = parsed.map((e) => e.userId).toSet()
         ..removeWhere((int id) => _usersCache.containsKey(id));
-      await Future.wait(missingIds.map((int id) async {
-        try {
-          final u = await http.get(Uri.parse('$_base/users/$id'));
-          if (u.statusCode == 200) {
-            final data = jsonDecode(u.body);
-            _usersCache[id] = (data is Map && data['user'] != null)
-                ? data['user'].toString()
-                : 'Usuario $id';
-          } else {
+      await Future.wait(
+        missingIds.map((int id) async {
+          try {
+            final u = await http.get(Uri.parse('$_base/users/$id'));
+            if (u.statusCode == 200) {
+              final data = jsonDecode(u.body);
+              _usersCache[id] = (data is Map && data['user'] != null)
+                  ? data['user'].toString()
+                  : 'Usuario $id';
+            } else {
+              _usersCache[id] = 'Usuario $id';
+            }
+          } catch (_) {
             _usersCache[id] = 'Usuario $id';
           }
-        } catch (_) {
-          _usersCache[id] = 'Usuario $id';
-        }
-      }));
+        }),
+      );
 
       setState(() => _comments = parsed);
     } catch (e) {
@@ -1025,8 +1028,8 @@ class _ReportCardState extends State<_ReportCard> {
       if (res.statusCode != 201) {
         throw Exception('HTTP ${res.statusCode} al crear comentario');
       }
-  final Map<String, dynamic> body = jsonDecode(res.body);
-  final _Comment created = _Comment.fromJson(body);
+      final Map<String, dynamic> body = jsonDecode(res.body);
+      final _Comment created = _Comment.fromJson(body);
       // Asegurar nombre del usuario actual en cache
       final uid = created.userId;
       if (!_usersCache.containsKey(uid)) {
@@ -1139,7 +1142,8 @@ class _CommentTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   message,
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  style:
+                      theme.textTheme.bodyMedium?.copyWith(
                         fontSize: 13,
                         color: Colors.grey[900],
                       ) ??

@@ -21,9 +21,19 @@ class ReportesCreate extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Crear Reporte')),
-      body: const Padding(
-        padding: EdgeInsets.all(16),
-        child: ReportesCreateForm(),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Align(
+            alignment: Alignment.topCenter,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: const ReportesCreateForm(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -358,8 +368,10 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                   if (reporteId != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Text('N° de reporte: #$reporteId',
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'N° de reporte: #$reporteId',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   Text('Título: $titulo'),
                   Text('Categoría: $categoria'),
@@ -419,8 +431,9 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     return SafeArea(
       child: Form(
         key: _formKey,
-        child: ListView(
-          padding: EdgeInsets.zero,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
@@ -430,7 +443,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               ],
             ),
             const SizedBox(height: spacing),
-            Row(children: const [SizedBox.shrink()]),
+            // Separador inicial
             const SizedBox(height: spacing),
             TextFormField(
               controller: _tituloCtrl,
