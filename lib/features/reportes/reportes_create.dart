@@ -43,7 +43,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   final _tituloCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
   final _direccionCtrl = TextEditingController();
-  final _veracidadCtrl = TextEditingController();
   double? _lat;
   double? _lon;
   bool _isGeocodingAddress = false;
@@ -73,7 +72,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     _tituloCtrl.dispose();
     _descripcionCtrl.dispose();
     _direccionCtrl.dispose();
-    _veracidadCtrl.dispose();
     super.dispose();
   }
 
@@ -90,14 +88,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
 
   String? _req(String? v) =>
       (v == null || v.trim().isEmpty) ? 'Campo obligatorio' : null;
-
-  String? _optPercent(String? v) {
-    if (v == null || v.trim().isEmpty) return null;
-    final n = double.tryParse(v.trim().replaceAll(',', '.'));
-    if (n == null) return 'Debe ser un número (0–100)';
-    if (n < 0 || n > 100) return 'Debe estar entre 0 y 100';
-    return null;
-  }
 
   void _scheduleGeocode() {
     _addrDebounce?.cancel();
@@ -315,9 +305,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         "lon": _lon,
         "direccion": _direccionCtrl.text.trim(),
         "estado": _estadoSel,
-        "veracidad_porcentaje": _veracidadCtrl.text.trim().isEmpty
-            ? null
-            : double.parse(_veracidadCtrl.text.trim().replaceAll(',', '.')),
         "cantidad_upvotes": 0,
         "cantidad_downvotes": 0,
       };
@@ -369,7 +356,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
           _tituloCtrl.clear();
           _descripcionCtrl.clear();
           _direccionCtrl.clear();
-          _veracidadCtrl.clear();
           _lat = null;
           _lon = null;
           _uploadedImageUrl = null;
@@ -565,14 +551,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               ),
             ],
             const SizedBox(height: spacing),
-            TextFormField(
-              controller: _veracidadCtrl,
-              decoration: _dec('Veracidad (%) - Opcional', hint: '0 a 100'),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              validator: _optPercent,
-            ),
             const SizedBox(height: 20),
             SizedBox(
               height: 48,

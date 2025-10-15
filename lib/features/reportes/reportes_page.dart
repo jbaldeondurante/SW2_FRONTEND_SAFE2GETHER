@@ -403,6 +403,7 @@ class _ReportCardState extends State<_ReportCard> {
   bool _updatingDown = false;
   int? _reactionId; // id en tabla Reaccion
   String? _reactionTipo; // 'upvote' | 'downvote' | null
+  double? _veracidad; // porcentaje (0-100)
 
   @override
   void initState() {
@@ -411,6 +412,7 @@ class _ReportCardState extends State<_ReportCard> {
     _downvotes = widget.report.downvotes;
     _reactionId = widget.userReaction?.id;
     _reactionTipo = widget.userReaction?.tipo;
+    _veracidad = widget.report.veracidad;
   }
 
   Color _estadoColor(String s) {
@@ -541,6 +543,28 @@ class _ReportCardState extends State<_ReportCard> {
       if (pr.statusCode != 200) {
         throw Exception('PATCH reporte HTTP ${pr.statusCode}');
       }
+      // actualizar veracidad local desde respuesta o calcular fallback
+      try {
+        final body = jsonDecode(pr.body);
+        double? vSrv;
+        if (body is Map<String, dynamic>) {
+          final num? vNum = body['veracidad_porcentaje'] as num?;
+          vSrv = vNum?.toDouble();
+        }
+        setState(() {
+          if (vSrv != null) {
+            _veracidad = vSrv;
+          } else {
+            final total = _upvotes + _downvotes;
+            _veracidad = total > 0 ? (_upvotes / total) * 100.0 : 0.0;
+          }
+        });
+      } catch (_) {
+        setState(() {
+          final total = _upvotes + _downvotes;
+          _veracidad = total > 0 ? (_upvotes / total) * 100.0 : 0.0;
+        });
+      }
     } catch (e) {
       // revertir a estado previo
       setState(() {
@@ -548,6 +572,7 @@ class _ReportCardState extends State<_ReportCard> {
         _reactionId = wasId;
         _upvotes = widget.report.upvotes;
         _downvotes = widget.report.downvotes;
+        _veracidad = widget.report.veracidad;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No se pudo registrar tu voto: $e')),
@@ -564,7 +589,7 @@ class _ReportCardState extends State<_ReportCard> {
 
   @override
   Widget build(BuildContext context) {
-    final v = widget.report.veracidad;
+    final v = _veracidad;
     final vTxt = v == null ? '—' : '${v.toStringAsFixed(0)}%';
     final created = widget.report.createdAt;
     return Card(
