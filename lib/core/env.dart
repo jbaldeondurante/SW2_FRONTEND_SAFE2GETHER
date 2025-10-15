@@ -15,8 +15,7 @@ class Env {
   /// Ej: http://localhost:5173 (web) o tu deeplink en mobile.
   static String? get supabaseRedirectUrl => dotenv.env['SUPABASE_REDIRECT_URL'];
 
- 
-   // ✅ Lee primero del .env; si está vacío, usa --dart-define; si sigue vacío, error.
+  // ✅ Lee primero del .env; si está vacío, usa --dart-define; si sigue vacío, error.
   static String get googleMapsApiKey {
     final v = dotenv.env['GOOGLE_MAPS_API_KEY'];
     if (v != null && v.isNotEmpty) return v;
@@ -25,7 +24,7 @@ class Env {
     if (d.isNotEmpty) return d;
 
     return _missing('GOOGLE_MAPS_API_KEY');
+  }
+}
 
-}
-}
 String _missing(String key) => throw Exception('Falta $key en settings.env');

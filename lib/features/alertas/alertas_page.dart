@@ -9,9 +9,7 @@ class AlertasPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Alertas')),
-      body: const Center(
-        child: Text('Alertas y notificaciones (TODO)'),
-      ),
+      body: const Center(child: Text('Alertas y notificaciones (TODO)')),
     );
   }
 }

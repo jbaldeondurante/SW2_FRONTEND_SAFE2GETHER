@@ -11,11 +11,16 @@ class SupabaseService {
   Future<String?> uploadImage(File imageFile) async {
     try {
       final supabase = Supabase.instance.client;
-      final fileName = 'reportes/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}';
-      final response = await supabase.storage.from('adjuntos').upload(fileName, imageFile);
+      final fileName =
+          'reportes/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}';
+      final response = await supabase.storage
+          .from('adjuntos')
+          .upload(fileName, imageFile);
       // Si la subida fue exitosa, response es la ruta del archivo
       if (response is String && response.isNotEmpty) {
-        final publicUrl = supabase.storage.from('adjuntos').getPublicUrl(fileName);
+        final publicUrl = supabase.storage
+            .from('adjuntos')
+            .getPublicUrl(fileName);
         return publicUrl;
       } else {
         print('Error al subir imagen: $response');
@@ -40,9 +45,13 @@ class SupabaseService {
       // Genera nombre seguro para el archivo
       final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_$safeName';
-      final response = await supabase.storage.from('adjuntos').uploadBinary(fileName, bytes);
+      final response = await supabase.storage
+          .from('adjuntos')
+          .uploadBinary(fileName, bytes);
       if (response is String && response.isNotEmpty) {
-        final publicUrl = supabase.storage.from('adjuntos').getPublicUrl(fileName);
+        final publicUrl = supabase.storage
+            .from('adjuntos')
+            .getPublicUrl(fileName);
         return publicUrl;
       } else {
         print('Error al subir imagen (web): $response');

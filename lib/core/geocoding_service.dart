@@ -14,7 +14,9 @@ class GeocodingService {
     try {
       String fullAddress = clean;
       final low = clean.toLowerCase();
-      if (!low.contains('lima') && !low.contains('perú') && !low.contains('peru')) {
+      if (!low.contains('lima') &&
+          !low.contains('perú') &&
+          !low.contains('peru')) {
         fullAddress = '$clean, Lima, Perú';
       }
 
@@ -84,33 +86,35 @@ class GeocodingService {
 
   /// 🔍 Sugerencias de direcciones (Google Places Autocomplete)
   Future<List<String>> searchAddresses(String query) async {
-  final q = query.trim();
-  if (q.length < 3) return [];
+    final q = query.trim();
+    if (q.length < 3) return [];
 
-  try {
-    // Llamamos a TU backend (usa Env.apiBaseUrl que ya tienes)
-    final url = Uri.parse('${Env.apiBaseUrl}/places/autocomplete?q=${Uri.encodeComponent(q)}');
+    try {
+      // Llamamos a TU backend (usa Env.apiBaseUrl que ya tienes)
+      final url = Uri.parse(
+        '${Env.apiBaseUrl}/places/autocomplete?q=${Uri.encodeComponent(q)}',
+      );
 
-    final res = await http.get(url);
-    if (res.statusCode != 200) {
-      print('Proxy places HTTP ${res.statusCode}: ${res.body}');
+      final res = await http.get(url);
+      if (res.statusCode != 200) {
+        print('Proxy places HTTP ${res.statusCode}: ${res.body}');
+        return [];
+      }
+
+      final data = jsonDecode(res.body);
+      final status = data['status'];
+      if (status == 'OK') {
+        final preds = (data['predictions'] as List);
+        return preds.map((p) => p['description'].toString()).toList();
+      } else {
+        print('Proxy places error: $status / ${data['error_message']}');
+        return [];
+      }
+    } catch (e) {
+      print('Proxy places exception: $e');
       return [];
     }
-
-    final data = jsonDecode(res.body);
-    final status = data['status'];
-    if (status == 'OK') {
-      final preds = (data['predictions'] as List);
-      return preds.map((p) => p['description'].toString()).toList();
-    } else {
-      print('Proxy places error: $status / ${data['error_message']}');
-      return [];
-    }
-  } catch (e) {
-    print('Proxy places exception: $e');
-    return [];
   }
-}
 }
 
 class LocationResult {

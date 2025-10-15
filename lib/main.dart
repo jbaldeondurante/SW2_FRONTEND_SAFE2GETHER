@@ -1,4 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 // lib/main.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -27,7 +26,9 @@ Future<void> _setup() async {
 
   // 1) Cargar .env (prioriza web vs android; fallback a settings.env)
   try {
-    await dotenv.load(fileName: kIsWeb ? 'settings.env' : 'settings.android.env');
+    await dotenv.load(
+      fileName: kIsWeb ? 'settings.env' : 'settings.android.env',
+    );
   } catch (_) {
     // Fallback si no existe el específico
     await dotenv.load(fileName: 'settings.env');
@@ -38,10 +39,7 @@ Future<void> _setup() async {
   // Env.printConfig();
 
   // 2) Inicializar Supabase
-  await Supabase.initialize(
-    url: Env.supabaseUrl,
-    anonKey: Env.supabaseAnonKey,
-  );
+  await Supabase.initialize(url: Env.supabaseUrl, anonKey: Env.supabaseAnonKey);
 
   // 3) Registrar dependencias
   if (!sl.isRegistered<ApiClient>()) {
@@ -76,7 +74,9 @@ class SupabaseAuthNotifier extends ChangeNotifier {
   void dispose() {
     _sub.cancel();
     if (_backendListener != null && sl.isRegistered<SupabaseService>()) {
-      sl<SupabaseService>().backendLoginNotifier.removeListener(_backendListener!);
+      sl<SupabaseService>().backendLoginNotifier.removeListener(
+        _backendListener!,
+      );
     }
     super.dispose();
   }
@@ -113,12 +113,14 @@ class _AppState extends State<App> {
         GoRoute(
           path: '/login',
           name: 'login',
-          builder: (_, __) => AuthPage(auth: sl<SupabaseService>(), api: sl<ApiClient>()),
+          builder: (_, __) =>
+              AuthPage(auth: sl<SupabaseService>(), api: sl<ApiClient>()),
         ),
         GoRoute(
           path: '/home',
           name: 'home',
-          builder: (_, __) => HomePage(api: sl<ApiClient>(), auth: sl<SupabaseService>()),
+          builder: (_, __) =>
+              HomePage(api: sl<ApiClient>(), auth: sl<SupabaseService>()),
         ),
         GoRoute(
           path: '/reportes',
@@ -162,20 +164,27 @@ class _AppState extends State<App> {
     final color = const Color(0xFF0D47A1);
     final baseTheme = ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: color, brightness: Brightness.light),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: color,
+        brightness: Brightness.light,
+      ),
       textTheme: GoogleFonts.outfitTextTheme(),
       scaffoldBackgroundColor: const Color(0xFFF7F9FC),
       appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(

@@ -73,11 +73,11 @@ class _MapaPageState extends State<MapaPage> {
 
     try {
       debugPrint('🔄 Cargando reportes desde: ${Env.apiBaseUrl}/Reportes');
-      
+
       final res = await http.get(Uri.parse('${Env.apiBaseUrl}/Reportes'));
-      
+
       debugPrint('📡 Respuesta HTTP: ${res.statusCode}');
-      
+
       if (res.statusCode != 200) {
         throw Exception('HTTP ${res.statusCode}: ${res.body}');
       }
@@ -88,16 +88,16 @@ class _MapaPageState extends State<MapaPage> {
       final reportes = <Reporte>[];
       final markers = <Marker>{};
       final circles = <Circle>{};
-      
+
       // Agrupar reportes por zona (aprox. 0.01 grados = ~1km)
       final Map<String, List<Reporte>> reportesPorZona = {};
 
       for (var i = 0; i < data.length; i++) {
         try {
           final r = Reporte.fromJson(data[i] as Map<String, dynamic>);
-          
+
           debugPrint('📍 Reporte ${r.id}: ${r.titulo} en (${r.lat}, ${r.lon})');
-          
+
           // Validar coordenadas
           if (r.lat.abs() > 90 || r.lon.abs() > 180) {
             debugPrint('⚠️ Coordenadas inválidas para reporte ${r.id}');
@@ -107,22 +107,23 @@ class _MapaPageState extends State<MapaPage> {
           reportes.add(r);
 
           // Crear marcador individual
-          markers.add(Marker(
-            markerId: MarkerId('rep-${r.id}'),
-            position: LatLng(r.lat, r.lon),
-            infoWindow: InfoWindow(
-              title: r.titulo,
-              snippet: '${r.categoria} • ${r.direccion}',
+          markers.add(
+            Marker(
+              markerId: MarkerId('rep-${r.id}'),
+              position: LatLng(r.lat, r.lon),
+              infoWindow: InfoWindow(
+                title: r.titulo,
+                snippet: '${r.categoria} • ${r.direccion}',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                _getCategoryHue(r.categoria),
+              ),
             ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              _getCategoryHue(r.categoria),
-            ),
-          ));
+          );
 
           // Agrupar por zona (redondear a 2 decimales)
           final zoneKey = '${(r.lat * 100).round()}_${(r.lon * 100).round()}';
           reportesPorZona.putIfAbsent(zoneKey, () => []).add(r);
-          
         } catch (e) {
           debugPrint('❌ Error procesando reporte $i: $e');
         }
@@ -133,7 +134,7 @@ class _MapaPageState extends State<MapaPage> {
         final count = reps.length;
         final avgLat = reps.fold<double>(0, (sum, r) => sum + r.lat) / count;
         final avgLon = reps.fold<double>(0, (sum, r) => sum + r.lon) / count;
-        
+
         final color = _getHeatColor(count);
         final radius = 300.0 + (count * 100.0).clamp(0, 1500);
 
@@ -150,7 +151,9 @@ class _MapaPageState extends State<MapaPage> {
           ),
         );
 
-        debugPrint('🔥 Zona $key: $count reportes en ($avgLat, $avgLon) - Radio: $radius m');
+        debugPrint(
+          '🔥 Zona $key: $count reportes en ($avgLat, $avgLon) - Radio: $radius m',
+        );
       });
 
       setState(() {
@@ -160,13 +163,14 @@ class _MapaPageState extends State<MapaPage> {
         _reportesPorZona = reportesPorZona.map((k, v) => MapEntry(k, v.length));
       });
 
-      debugPrint('✅ Cargado: ${reportes.length} reportes, ${circles.length} zonas');
+      debugPrint(
+        '✅ Cargado: ${reportes.length} reportes, ${circles.length} zonas',
+      );
 
       // Centrar el mapa en los reportes
       if (reportes.isNotEmpty && _mapCtl.isCompleted) {
         _fitMapToReports(reportes);
       }
-
     } catch (e, stack) {
       debugPrint('❌ Error cargando reportes: $e');
       debugPrint('Stack: $stack');
@@ -358,7 +362,9 @@ class _MapaPageState extends State<MapaPage> {
                     final r = sorted[i];
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: _getCategoryColor(r.categoria).withOpacity(0.2),
+                        backgroundColor: _getCategoryColor(
+                          r.categoria,
+                        ).withOpacity(0.2),
                         child: Icon(
                           _getCategoryIcon(r.categoria),
                           color: _getCategoryColor(r.categoria),
@@ -409,125 +415,127 @@ class _MapaPageState extends State<MapaPage> {
               ),
             )
           : _errorMessage.isNotEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Error cargando el mapa',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _errorMessage,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _loadReportes,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Reintentar'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : Stack(
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    GoogleMap(
-                      initialCameraPosition: const CameraPosition(
-                        target: _limaCenter,
-                        zoom: 11.5,
-                      ),
-                      myLocationButtonEnabled: true,
-                      zoomControlsEnabled: true,
-                      mapToolbarEnabled: false,
-                      markers: _markers,
-                      circles: _circles,
-                      onMapCreated: (c) {
-                        _mapCtl.complete(c);
-                        if (_reportes.isNotEmpty) {
-                          Future.delayed(const Duration(milliseconds: 500), () {
-                            _fitMapToReports(_reportes);
-                          });
-                        }
-                      },
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
                     ),
-
-                    // Leyenda
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: Card(
-                        elevation: 4,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'Nivel de Riesgo',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _buildLegendItem('Bajo (≤5)', Colors.grey),
-                              _buildLegendItem('Medio (6-10)', Colors.amber),
-                              _buildLegendItem('Alto (>10)', Colors.red),
-                            ],
-                          ),
-                        ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Error cargando el mapa',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                    // Contador de reportes
-                    Positioned(
-                      bottom: 16,
-                      left: 16,
-                      child: Card(
-                        elevation: 4,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.report, size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${_reportes.length} reportes',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '• ${_reportesPorZona.length} zonas',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _errorMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _loadReportes,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar'),
                     ),
                   ],
                 ),
+              ),
+            )
+          : Stack(
+              children: [
+                GoogleMap(
+                  initialCameraPosition: const CameraPosition(
+                    target: _limaCenter,
+                    zoom: 11.5,
+                  ),
+                  myLocationButtonEnabled: true,
+                  zoomControlsEnabled: true,
+                  mapToolbarEnabled: false,
+                  markers: _markers,
+                  circles: _circles,
+                  onMapCreated: (c) {
+                    _mapCtl.complete(c);
+                    if (_reportes.isNotEmpty) {
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        _fitMapToReports(_reportes);
+                      });
+                    }
+                  },
+                ),
+
+                // Leyenda
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Nivel de Riesgo',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildLegendItem('Bajo (≤5)', Colors.grey),
+                          _buildLegendItem('Medio (6-10)', Colors.amber),
+                          _buildLegendItem('Alto (>10)', Colors.red),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Contador de reportes
+                Positioned(
+                  bottom: 16,
+                  left: 16,
+                  child: Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.report, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_reportes.length} reportes',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '• ${_reportesPorZona.length} zonas',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 

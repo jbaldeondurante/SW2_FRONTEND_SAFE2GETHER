@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/supabase_service.dart';
 import 'reportes_create.dart';
+import '../../core/ui.dart';
 // Removed unused imports: go_router, env
 
 class ReportesPage extends StatefulWidget {
@@ -34,7 +35,9 @@ class _ReportesPageState extends State<ReportesPage> {
       throw Exception('HTTP ${r.statusCode} al obtener Reportes');
     }
     final List<dynamic> raw = jsonDecode(r.body);
-    final reports = raw.map((e) => Report.fromJson(e as Map<String, dynamic>)).toList();
+    final reports = raw
+        .map((e) => Report.fromJson(e as Map<String, dynamic>))
+        .toList();
     // Ordenar del más reciente al más antiguo
     reports.sort((a, b) {
       final ta = a.createdAt;
@@ -48,21 +51,23 @@ class _ReportesPageState extends State<ReportesPage> {
     // Traer nombres de usuario (sin duplicados)
     final ids = reports.map((e) => e.userId).toSet();
     final names = <int, String>{};
-    await Future.wait(ids.map((id) async {
-      try {
-        final u = await http.get(Uri.parse('$_base/users/$id'));
-        if (u.statusCode == 200) {
-          final data = jsonDecode(u.body);
-          names[id] = (data is Map && data['user'] != null)
-              ? data['user'].toString()
-              : 'Usuario $id';
-        } else {
+    await Future.wait(
+      ids.map((id) async {
+        try {
+          final u = await http.get(Uri.parse('$_base/users/$id'));
+          if (u.statusCode == 200) {
+            final data = jsonDecode(u.body);
+            names[id] = (data is Map && data['user'] != null)
+                ? data['user'].toString()
+                : 'Usuario $id';
+          } else {
+            names[id] = 'Usuario $id';
+          }
+        } catch (_) {
           names[id] = 'Usuario $id';
         }
-      } catch (_) {
-        names[id] = 'Usuario $id';
-      }
-    }));
+      }),
+    );
 
     // Traer adjuntos (imagenes) y cruzar por reporte_id
     final adjRes = await http.get(Uri.parse('$_base/Adjunto'));
@@ -70,16 +75,36 @@ class _ReportesPageState extends State<ReportesPage> {
     if (adjRes.statusCode == 200) {
       final adjuntos = jsonDecode(adjRes.body) as List<dynamic>;
       for (final adj in adjuntos) {
-        if (adj is Map<String, dynamic> && adj['reporte_id'] != null && adj['url'] != null) {
+        if (adj is Map<String, dynamic> &&
+            adj['reporte_id'] != null &&
+            adj['url'] != null) {
           final tipo = adj['tipo']?.toString().toLowerCase();
           final url = (adj['url'] as String).toString();
           // Aceptar varios tipos comunes y, si no hay tipo, inferir por extensión de la URL
-          const tiposValidos = {'foto','imagen','image','img','picture','photo'};
+          const tiposValidos = {
+            'foto',
+            'imagen',
+            'image',
+            'img',
+            'picture',
+            'photo',
+          };
           final lowerUrl = url.toLowerCase();
-          const exts = ['.jpg','.jpeg','.png','.gif','.webp','.bmp','.svg','.heic','.heif'];
+          const exts = [
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.gif',
+            '.webp',
+            '.bmp',
+            '.svg',
+            '.heic',
+            '.heif',
+          ];
           final looksLikeImage = exts.any((e) => lowerUrl.contains(e));
 
-          if ((tipo != null && tiposValidos.contains(tipo)) || (tipo == null || tipo.isEmpty) && looksLikeImage) {
+          if ((tipo != null && tiposValidos.contains(tipo)) ||
+              (tipo == null || tipo.isEmpty) && looksLikeImage) {
             final rid = adj['reporte_id'] as int;
             imagenesPorReporte.putIfAbsent(rid, () => []).add(url);
           }
@@ -91,7 +116,9 @@ class _ReportesPageState extends State<ReportesPage> {
     final userReactions = <int, _UserReaction>{};
     if (currentUserId != null) {
       try {
-        final rr = await http.get(Uri.parse('$_base/Reacciones/user/$currentUserId'));
+        final rr = await http.get(
+          Uri.parse('$_base/Reacciones/user/$currentUserId'),
+        );
         if (rr.statusCode == 200) {
           final list = jsonDecode(rr.body) as List<dynamic>;
           for (final it in list) {
@@ -99,7 +126,9 @@ class _ReportesPageState extends State<ReportesPage> {
               final rid = it['reporte_id'] as int?;
               final id = it['id'] as int?;
               final tipo = (it['tipo'] as String?)?.toLowerCase();
-              if (rid != null && id != null && (tipo == 'upvote' || tipo == 'downvote')) {
+              if (rid != null &&
+                  id != null &&
+                  (tipo == 'upvote' || tipo == 'downvote')) {
                 userReactions[rid] = _UserReaction(id: id, tipo: tipo!);
               }
             }
@@ -132,10 +161,7 @@ class _ReportesPageState extends State<ReportesPage> {
         foregroundColor: Colors.white,
         title: SizedBox(
           height: 36,
-          child: Image.asset(
-            'assets/logo.png',
-            fit: BoxFit.contain,
-          ),
+          child: Image.asset('assets/logo.png', fit: BoxFit.contain),
         ),
         centerTitle: true,
         actions: [
@@ -154,10 +180,7 @@ class _ReportesPageState extends State<ReportesPage> {
                   return AlertDialog(
                     backgroundColor: Colors.white,
                     contentPadding: const EdgeInsets.all(16),
-                    content: SizedBox(
-                      width: 420,
-                      child: ReportesCreateForm(),
-                    ),
+                    content: SizedBox(width: 420, child: ReportesCreateForm()),
                   );
                 },
               );
@@ -209,8 +232,20 @@ class _ReportesPageState extends State<ReportesPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Column(
                           children: const [
-                            SizedBox(height: 200),
-                            Center(child: Text('No hay reportes')),
+                            SizedBox(height: 120),
+                            Icon(
+                              Icons.inbox_outlined,
+                              color: Colors.white70,
+                              size: 48,
+                            ),
+                            SizedBox(height: 12),
+                            Center(
+                              child: Text(
+                                'No hay reportes aún',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ),
+                            SizedBox(height: 8),
                           ],
                         ),
                       ),
@@ -234,7 +269,10 @@ class _ReportesPageState extends State<ReportesPage> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 900),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       child: _ReportCard(
                         report: r,
                         userName: user,
@@ -286,10 +324,15 @@ class Report {
   });
 
   factory Report.fromJson(Map<String, dynamic> j) {
-    double? asD(v) => v == null ? null : (v is num ? v.toDouble() : double.tryParse('$v'));
+    double? asD(v) =>
+        v == null ? null : (v is num ? v.toDouble() : double.tryParse('$v'));
     DateTime? asT(v) {
       if (v == null) return null;
-      try { return DateTime.parse('$v'); } catch (_) { return null; }
+      try {
+        return DateTime.parse('$v');
+      } catch (_) {
+        return null;
+      }
     }
 
     return Report(
@@ -313,10 +356,18 @@ class Report {
 class _PageData {
   final List<Report> reports;
   final Map<int, String> userNames;
-  final Map<int, List<String>> imagenesPorReporte; // reporte_id -> lista de urls
-  final Map<int, _UserReaction> userReactions; // reporte_id -> reaccion del usuario
+  final Map<int, List<String>>
+  imagenesPorReporte; // reporte_id -> lista de urls
+  final Map<int, _UserReaction>
+  userReactions; // reporte_id -> reaccion del usuario
   final int? currentUserId;
-  _PageData({required this.reports, required this.userNames, required this.imagenesPorReporte, required this.userReactions, required this.currentUserId});
+  _PageData({
+    required this.reports,
+    required this.userNames,
+    required this.imagenesPorReporte,
+    required this.userReactions,
+    required this.currentUserId,
+  });
 }
 
 class _UserReaction {
@@ -331,7 +382,14 @@ class _ReportCard extends StatefulWidget {
   final List<String>? imagenes;
   final _UserReaction? userReaction;
   final int? currentUserId;
-  const _ReportCard({Key? key, required this.report, required this.userName, this.imagenes, this.userReaction, this.currentUserId}) : super(key: key);
+  const _ReportCard({
+    Key? key,
+    required this.report,
+    required this.userName,
+    this.imagenes,
+    this.userReaction,
+    this.currentUserId,
+  }) : super(key: key);
 
   @override
   State<_ReportCard> createState() => _ReportCardState();
@@ -357,17 +415,23 @@ class _ReportCardState extends State<_ReportCard> {
 
   Color _estadoColor(String s) {
     switch (s.toUpperCase()) {
-      case 'ACTIVO': return Colors.orange;
+      case 'ACTIVO':
+        return Colors.orange;
       case 'RESUELTO':
-      case 'CERRADO': return Colors.green;
-      case 'EN PROCESO': return Colors.blueGrey;
-      default: return Colors.grey;
+      case 'CERRADO':
+        return Colors.green;
+      case 'EN PROCESO':
+        return Colors.blueGrey;
+      default:
+        return Colors.grey;
     }
   }
 
   Future<void> _vote({required bool up}) async {
     if (widget.currentUserId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Inicia sesión para votar')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Inicia sesión para votar')));
       return;
     }
     if (up && _updatingUp) return;
@@ -376,7 +440,7 @@ class _ReportCardState extends State<_ReportCard> {
     final wasTipo = _reactionTipo; // estado previo
     final wasId = _reactionId;
     // Calcular nuevo estado y contadores optimistas
-  String? newTipo = wasTipo;
+    String? newTipo = wasTipo;
     int upvotes = _upvotes;
     int downvotes = _downvotes;
 
@@ -413,7 +477,10 @@ class _ReportCardState extends State<_ReportCard> {
     }
 
     setState(() {
-      if (up) _updatingUp = true; else _updatingDown = true;
+      if (up)
+        _updatingUp = true;
+      else
+        _updatingDown = true;
       _upvotes = upvotes;
       _downvotes = downvotes;
       _reactionTipo = newTipo;
@@ -482,10 +549,15 @@ class _ReportCardState extends State<_ReportCard> {
         _upvotes = widget.report.upvotes;
         _downvotes = widget.report.downvotes;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo registrar tu voto: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo registrar tu voto: $e')),
+      );
     } finally {
       setState(() {
-        if (up) _updatingUp = false; else _updatingDown = false;
+        if (up)
+          _updatingUp = false;
+        else
+          _updatingDown = false;
       });
     }
   }
@@ -494,11 +566,12 @@ class _ReportCardState extends State<_ReportCard> {
   Widget build(BuildContext context) {
     final v = widget.report.veracidad;
     final vTxt = v == null ? '—' : '${v.toStringAsFixed(0)}%';
+    final created = widget.report.createdAt;
     return Card(
       elevation: 0.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: R.br16),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -507,50 +580,70 @@ class _ReportCardState extends State<_ReportCard> {
               children: [
                 Expanded(
                   child: Text(
-                    widget.report.titulo.isEmpty ? 'Reporte #${widget.report.id}' : widget.report.titulo,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    widget.report.titulo.isEmpty
+                        ? 'Reporte #${widget.report.id}'
+                        : widget.report.titulo,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Chip(
-                  label: Text(widget.report.estado),
-                  backgroundColor: _estadoColor(widget.report.estado).withOpacity(0.12),
-                  side: BorderSide(color: _estadoColor(widget.report.estado).withOpacity(0.4)),
-                  labelStyle: TextStyle(
-                    color: _estadoColor(widget.report.estado),
-                    fontWeight: FontWeight.w600,
-                  ),
+                const SizedBox(width: Spacing.md),
+                MetaChip(
+                  icon: Icons.info_outline,
+                  label: widget.report.estado,
+                  color: _estadoColor(widget.report.estado),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: Spacing.md),
             Row(
               children: [
-                const Icon(Icons.person, size: 18),
-                const SizedBox(width: 6),
-                Flexible(child: Text(widget.userName, style: const TextStyle(fontWeight: FontWeight.w600))),
+                const Icon(Icons.person_outline, size: 18),
+                const SizedBox(width: Spacing.sm),
+                Flexible(
+                  child: Text(
+                    widget.userName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: Spacing.lg),
+                if (created != null)
+                  Text(
+                    relativeTimeString(created),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                  ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: Spacing.md),
             Text(
-              widget.report.descripcion.trim().isEmpty ? 'Sin descripción' : widget.report.descripcion.trim(),
+              widget.report.descripcion.trim().isEmpty
+                  ? 'Sin descripción'
+                  : widget.report.descripcion.trim(),
               maxLines: 5,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: Spacing.lg),
             if (widget.imagenes != null && widget.imagenes!.isNotEmpty) ...[
               SizedBox(
                 height: 180,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: widget.imagenes!.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(width: Spacing.md),
                   itemBuilder: (ctx, idx) {
                     final url = widget.imagenes![idx];
                     return GestureDetector(
-                      onTap: () => _openImageViewer(ctx, widget.imagenes!, startIndex: idx),
+                      onTap: () => _openImageViewer(
+                        ctx,
+                        widget.imagenes!,
+                        startIndex: idx,
+                      ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: R.br12,
                         child: Image.network(
                           url,
                           height: 180,
@@ -560,7 +653,9 @@ class _ReportCardState extends State<_ReportCard> {
                             height: 180,
                             width: 220,
                             color: Colors.grey[200],
-                            child: const Center(child: Icon(Icons.broken_image, size: 40)),
+                            child: const Center(
+                              child: Icon(Icons.broken_image, size: 40),
+                            ),
                           ),
                         ),
                       ),
@@ -568,38 +663,43 @@ class _ReportCardState extends State<_ReportCard> {
                   },
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: Spacing.lg),
             ],
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.place, size: 18),
-                const SizedBox(width: 6),
+                const Icon(Icons.place_outlined, size: 18),
+                const SizedBox(width: Spacing.sm),
                 Expanded(
                   child: Text(
-                    widget.report.direccion.isEmpty ? 'Dirección no especificada' : widget.report.direccion,
+                    widget.report.direccion.isEmpty
+                        ? 'Dirección no especificada'
+                        : widget.report.direccion,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: Spacing.md),
             Row(
               children: [
                 const Icon(Icons.verified, size: 18),
-                const SizedBox(width: 6),
+                const SizedBox(width: Spacing.sm),
                 Text('Veracidad: $vTxt'),
               ],
             ),
             if (v != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: Spacing.sm),
               ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(value: (v.clamp(0, 100)) / 100.0, minHeight: 8),
+                borderRadius: R.br12,
+                child: LinearProgressIndicator(
+                  value: (v.clamp(0, 100)) / 100.0,
+                  minHeight: 8,
+                ),
               ),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: Spacing.lg),
             // Votos tipo Reddit
             Row(
               children: [
@@ -608,37 +708,63 @@ class _ReportCardState extends State<_ReportCard> {
                   height: 36,
                   child: FilledButton.tonalIcon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: _reactionTipo == 'upvote' ? Theme.of(context).colorScheme.primary.withOpacity(0.15) : null,
+                      backgroundColor: _reactionTipo == 'upvote'
+                          ? Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.15)
+                          : null,
                     ),
                     onPressed: _updatingUp ? null : () => _vote(up: true),
                     icon: _updatingUp
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Icon(_reactionTipo == 'upvote' ? Icons.thumb_up_alt : Icons.thumb_up_alt_outlined),
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _reactionTipo == 'upvote'
+                                ? Icons.thumb_up_alt
+                                : Icons.thumb_up_alt_outlined,
+                          ),
                     label: Text('$_upvotes'),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: Spacing.md),
                 // Downvote
                 SizedBox(
                   height: 36,
                   child: FilledButton.tonalIcon(
                     style: FilledButton.styleFrom(
                       foregroundColor: Colors.red[800],
-                      backgroundColor: _reactionTipo == 'downvote' ? Colors.red.withOpacity(0.12) : null,
+                      backgroundColor: _reactionTipo == 'downvote'
+                          ? Colors.red.withOpacity(0.12)
+                          : null,
                     ),
                     onPressed: _updatingDown ? null : () => _vote(up: false),
                     icon: _updatingDown
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Icon(_reactionTipo == 'downvote' ? Icons.thumb_down_alt : Icons.thumb_down_alt_outlined),
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _reactionTipo == 'downvote'
+                                ? Icons.thumb_down_alt
+                                : Icons.thumb_down_alt_outlined,
+                          ),
                     label: Text('$_downvotes'),
                   ),
                 ),
               ],
             ),
-            if (widget.report.createdAt != null) ...[
-              const SizedBox(height: 8),
-              Text('Creado el: ${widget.report.createdAt!.toLocal()}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+            if (created != null) ...[
+              const SizedBox(height: Spacing.sm),
+              Text(
+                'Creado ${relativeTimeString(created)}',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+              ),
             ],
           ],
         ),
@@ -647,7 +773,11 @@ class _ReportCardState extends State<_ReportCard> {
   }
 }
 
-void _openImageViewer(BuildContext context, List<String> urls, {int startIndex = 0}) {
+void _openImageViewer(
+  BuildContext context,
+  List<String> urls, {
+  int startIndex = 0,
+}) {
   Navigator.of(context).push(
     MaterialPageRoute(
       fullscreenDialog: true,
@@ -659,7 +789,8 @@ void _openImageViewer(BuildContext context, List<String> urls, {int startIndex =
 class _ImageViewer extends StatefulWidget {
   final List<String> urls;
   final int initialIndex;
-  const _ImageViewer({Key? key, required this.urls, this.initialIndex = 0}) : super(key: key);
+  const _ImageViewer({Key? key, required this.urls, this.initialIndex = 0})
+    : super(key: key);
 
   @override
   State<_ImageViewer> createState() => _ImageViewerState();
@@ -701,7 +832,11 @@ class _ImageViewerState extends State<_ImageViewer> {
               child: Image.network(
                 url,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white70, size: 64),
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.broken_image,
+                  color: Colors.white70,
+                  size: 64,
+                ),
               ),
             ),
           );
@@ -714,7 +849,8 @@ class _ImageViewerState extends State<_ImageViewer> {
 class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-  const _ErrorView({Key? key, required this.message, required this.onRetry}) : super(key: key);
+  const _ErrorView({Key? key, required this.message, required this.onRetry})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -726,11 +862,18 @@ class _ErrorView extends StatelessWidget {
           children: [
             const Icon(Icons.error_outline, size: 40),
             const SizedBox(height: 12),
-            const Text('Error cargando datos', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              'Error cargando datos',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Reintentar')),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
           ],
         ),
       ),

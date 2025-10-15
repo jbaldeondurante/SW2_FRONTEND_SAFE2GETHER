@@ -25,33 +25,37 @@ class ApiClient {
     );
 
     // Añade Bearer si hay sesión (prioriza token del backend si existe)
-    dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
-      final backendToken = ApiClient.backendAccessToken;
-      if (backendToken != null && backendToken.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $backendToken';
-      } else {
-        final session = Supabase.instance.client.auth.currentSession;
-        final accessToken = session?.accessToken;
-        if (accessToken != null && accessToken.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer $accessToken';
-        }
-      }
-      handler.next(options);
-    }));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final backendToken = ApiClient.backendAccessToken;
+          if (backendToken != null && backendToken.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $backendToken';
+          } else {
+            final session = Supabase.instance.client.auth.currentSession;
+            final accessToken = session?.accessToken;
+            if (accessToken != null && accessToken.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $accessToken';
+            }
+          }
+          handler.next(options);
+        },
+      ),
+    );
 
     return ApiClient._(dio);
   }
 
   Dio _noAuth() => Dio(
-        BaseOptions(
-          baseUrl: Env.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 8),
-          receiveTimeout: const Duration(seconds: 8),
-          sendTimeout: const Duration(seconds: 8),
-          headers: const {'Content-Type': 'application/json; charset=utf-8'},
-          validateStatus: (code) => code != null && code < 500,
-        ),
-      );
+    BaseOptions(
+      baseUrl: Env.apiBaseUrl,
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 8),
+      sendTimeout: const Duration(seconds: 8),
+      headers: const {'Content-Type': 'application/json; charset=utf-8'},
+      validateStatus: (code) => code != null && code < 500,
+    ),
+  );
 
   // --- Utilidad: parsear respuesta en Map de forma segura ---
   Map<String, dynamic> _asMap(Response res) {
@@ -100,7 +104,9 @@ class ApiClient {
     } on Exception {
       // intenta descubrir openapi
       try {
-        final res = await d.get('/openapi.json').timeout(const Duration(seconds: 8));
+        final res = await d
+            .get('/openapi.json')
+            .timeout(const Duration(seconds: 8));
         final map = _asMap(res);
         final paths = (map['paths'] as Map?)?.keys.take(5).join('\n - ');
         return 'OpenAPI detectado. Endpoints:\n - ${paths ?? 's/a'}';
@@ -111,7 +117,10 @@ class ApiClient {
   }
 
   // --- Helpers genéricos seguros con timeout ---
-  Future<Map<String, dynamic>> getJson(String path, {Map<String, dynamic>? query}) async {
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
     try {
       final res = await _dio
           .get(path, queryParameters: query)
@@ -122,8 +131,11 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body,
-      {Map<String, dynamic>? query}) async {
+  Future<Map<String, dynamic>> postJson(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, dynamic>? query,
+  }) async {
     try {
       final res = await _dio
           .post(path, data: body, queryParameters: query)
@@ -140,7 +152,11 @@ class ApiClient {
     required String email,
     required String psswd,
   }) async {
-    final r = await postJson('/users', {'user': user, 'email': email, 'psswd': psswd});
+    final r = await postJson('/users', {
+      'user': user,
+      'email': email,
+      'psswd': psswd,
+    });
     final code = r['status'] as int?; // si lo llenó _asMap
     if (code != null && code >= 400) {
       throw Exception('API /users respondió $code: ${jsonEncode(r)}');

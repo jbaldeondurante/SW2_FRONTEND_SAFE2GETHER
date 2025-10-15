@@ -34,9 +34,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -82,7 +80,10 @@ class _HomePageState extends State<HomePage> {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
-                  child: Text(_status, style: const TextStyle(fontFamily: 'monospace')),
+                  child: Text(
+                    _status,
+                    style: const TextStyle(fontFamily: 'monospace'),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

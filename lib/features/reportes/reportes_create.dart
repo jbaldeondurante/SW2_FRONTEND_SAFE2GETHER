@@ -37,7 +37,6 @@ class ReportesCreateForm extends StatefulWidget {
   State<ReportesCreateForm> createState() => _ReportesCreateFormState();
 }
 
-
 class _ReportesCreateFormState extends State<ReportesCreateForm> {
   final _formKey = GlobalKey<FormState>();
   final _geocodingService = GeocodingService();
@@ -51,7 +50,15 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   bool _isFetchingLocation = false;
   Timer? _addrDebounce;
   int _geocodeSeq = 0;
-  final _categorias = const <String>['Robo','Asalto','Vandalismo','Acoso','Accidente','Asesinato','Otro'];
+  final _categorias = const <String>[
+    'Robo',
+    'Asalto',
+    'Vandalismo',
+    'Acoso',
+    'Accidente',
+    'Asesinato',
+    'Otro',
+  ];
   final _estados = const <String>['ACTIVO', 'PENDIENTE', 'CERRADO'];
   String? _categoriaSel;
   String? _estadoSel = 'ACTIVO';
@@ -81,7 +88,8 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     );
   }
 
-  String? _req(String? v) => (v == null || v.trim().isEmpty) ? 'Campo obligatorio' : null;
+  String? _req(String? v) =>
+      (v == null || v.trim().isEmpty) ? 'Campo obligatorio' : null;
 
   String? _optPercent(String? v) {
     if (v == null || v.trim().isEmpty) return null;
@@ -98,6 +106,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
       if (txt.length > 3) _onAddressChanged();
     });
   }
+
   Future<void> _onAddressChanged() async {
     final address = _direccionCtrl.text.trim();
     if (address.isEmpty) {
@@ -149,8 +158,8 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
     // En Web, image.path puede no tener extensión (p.ej., 'blob'), usar image.name.
-  String ext;
-  final mimeHint = image.mimeType; // e.g., image/png, image/jpeg
+    String ext;
+    final mimeHint = image.mimeType; // e.g., image/png, image/jpeg
     if (image.name.contains('.')) {
       ext = image.name.split('.').last.toLowerCase();
     } else {
@@ -161,21 +170,37 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     // Si el mimeType viene del picker, úsalo para forzar content-type correcto
     // Prefer a valid image/* mime; if missing or octet-stream, compute from extension
     String? finalMime = mimeHint;
-    if (finalMime == null || finalMime.isEmpty || finalMime == 'application/octet-stream' || !finalMime.startsWith('image/')) {
+    if (finalMime == null ||
+        finalMime.isEmpty ||
+        finalMime == 'application/octet-stream' ||
+        !finalMime.startsWith('image/')) {
       finalMime = _mimeFromExt(ext);
     }
-    await _uploadBytes(bytes, ext, originalName: image.name, overrideMime: finalMime);
+    await _uploadBytes(
+      bytes,
+      ext,
+      originalName: image.name,
+      overrideMime: finalMime,
+    );
   }
 
   Future<void> _pickAndUploadImageMobile() async {
     final picker = ImagePicker();
     // imageQuality fuerza re-encoding a JPEG en iOS/Android, evitando HEIC/HEIF
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 95);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 95,
+    );
     if (pickedFile == null) return;
     // Al comprimir (imageQuality) normalmente obtenemos JPEG; forzamos a JPG para servir inline
     String ext = 'jpg';
     final bytes = await File(pickedFile.path).readAsBytes();
-    await _uploadBytes(bytes, ext, originalName: pickedFile.name, overrideMime: 'image/jpeg');
+    await _uploadBytes(
+      bytes,
+      ext,
+      originalName: pickedFile.name,
+      overrideMime: 'image/jpeg',
+    );
   }
 
   String _mimeFromExt(String ext) {
@@ -199,31 +224,49 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     }
   }
 
-  Future<void> _uploadBytes(Uint8List bytes, String ext, {String? originalName, String? overrideMime}) async {
+  Future<void> _uploadBytes(
+    Uint8List bytes,
+    String ext, {
+    String? originalName,
+    String? overrideMime,
+  }) async {
     // Opción B: RLS para anónimos en carpeta public/PostImages
-  final ts = DateTime.now().microsecondsSinceEpoch;
-    final sanitized = (originalName ?? 'image').replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final ts = DateTime.now().microsecondsSinceEpoch;
+    final sanitized = (originalName ?? 'image').replaceAll(
+      RegExp(r'[^A-Za-z0-9._-]'),
+      '_',
+    );
     // Asegurar extensión acorde al 'ext' provisto (evita .heic que el browser no muestra)
     final dot = sanitized.lastIndexOf('.');
     final base = dot > 0 ? sanitized.substring(0, dot) : sanitized;
     final fileName = '${ts}_$base.$ext';
     final path = 'public/PostImages/$fileName';
-    final mime = overrideMime != null && overrideMime.isNotEmpty ? overrideMime : _mimeFromExt(ext);
+    final mime = overrideMime != null && overrideMime.isNotEmpty
+        ? overrideMime
+        : _mimeFromExt(ext);
     try {
-      await Supabase.instance.client.storage.from('adjuntos').uploadBinary(
-        path,
-        bytes,
-        fileOptions: FileOptions(
-          upsert: true,
-          contentType: mime,
-        ),
-      );
-      var imageUrl = Supabase.instance.client.storage.from('adjuntos').getPublicUrl(path);
+      await Supabase.instance.client.storage
+          .from('adjuntos')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(upsert: true, contentType: mime),
+          );
+      var imageUrl = Supabase.instance.client.storage
+          .from('adjuntos')
+          .getPublicUrl(path);
       imageUrl = Uri.parse(imageUrl)
-          .replace(queryParameters: {'t': DateTime.now().millisecondsSinceEpoch.toString()}).toString();
+          .replace(
+            queryParameters: {
+              't': DateTime.now().millisecondsSinceEpoch.toString(),
+            },
+          )
+          .toString();
       if (!mounted) return;
       setState(() => _uploadedImageUrl = imageUrl);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imagen subida correctamente')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Imagen subida correctamente')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -235,22 +278,32 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_categoriaSel == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona una categoría')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Selecciona una categoría')));
       return;
     }
     if (_estadoSel == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona un estado')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Selecciona un estado')));
       return;
     }
     if (_lat == null || _lon == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Espera a que se geocodifique la dirección')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Espera a que se geocodifique la dirección'),
+        ),
+      );
       return;
     }
     setState(() => _isSubmitting = true);
     try {
       final currentUserId = GetIt.instance<SupabaseService>().backendUserId;
       if (currentUserId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay usuario autenticado.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay usuario autenticado.')),
+        );
         return;
       }
       final payload = {
@@ -262,7 +315,9 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         "lon": _lon,
         "direccion": _direccionCtrl.text.trim(),
         "estado": _estadoSel,
-        "veracidad_porcentaje": _veracidadCtrl.text.trim().isEmpty ? null : double.parse(_veracidadCtrl.text.trim().replaceAll(',', '.')),
+        "veracidad_porcentaje": _veracidadCtrl.text.trim().isEmpty
+            ? null
+            : double.parse(_veracidadCtrl.text.trim().replaceAll(',', '.')),
         "cantidad_upvotes": 0,
         "cantidad_downvotes": 0,
       };
@@ -292,16 +347,21 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               String msg = 'Adjunto no registrado (HTTP ${adjRes.statusCode})';
               try {
                 final body = jsonDecode(adjRes.body);
-                if (body is Map && body['detail'] != null) msg = body['detail'].toString();
+                if (body is Map && body['detail'] != null)
+                  msg = body['detail'].toString();
               } catch (_) {}
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(msg)));
             }
           }
         } catch (e) {
           // Continuar aunque falle el registro del adjunto
           debugPrint('Fallo al registrar adjunto: $e');
         }
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte creado con éxito ✅')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reporte creado con éxito ✅')),
+        );
         setState(() {
           _formKey.currentState!.reset();
           _categoriaSel = null;
@@ -314,7 +374,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
           _lon = null;
           _uploadedImageUrl = null;
         });
-  if (mounted) Navigator.of(context).pop(true);
+        if (mounted) Navigator.of(context).pop(true);
       } else {
         String msg = 'Error ${res.statusCode} al crear el reporte';
         try {
@@ -323,10 +383,14 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             msg = body['detail'].toString();
           }
         } catch (_) {}
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo conectar con el servidor: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo conectar con el servidor: $e')),
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -338,8 +402,9 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   Widget build(BuildContext context) {
     const spacing = 12.0;
     final svc = GetIt.instance<SupabaseService>();
-    final descUser = svc.backendUsername ?? 'Usuario #${svc.backendUserId ?? '?'}';
-      return SafeArea(
+    final descUser =
+        svc.backendUsername ?? 'Usuario #${svc.backendUserId ?? '?'}';
+    return SafeArea(
       child: Form(
         key: _formKey,
         child: ListView(
@@ -359,7 +424,9 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                   child: DropdownButtonFormField<String>(
                     value: _estadoSel,
                     decoration: _dec('Estado'),
-                    items: _estados.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: _estados
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
                     onChanged: (v) => setState(() => _estadoSel = v),
                     validator: (v) => v == null ? 'Campo obligatorio' : null,
                   ),
@@ -387,7 +454,9 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             ElevatedButton.icon(
               icon: const Icon(Icons.photo_library),
               label: const Text('Adjuntar imagen'),
-              onPressed: kIsWeb ? _pickAndUploadImageWeb : _pickAndUploadImageMobile,
+              onPressed: kIsWeb
+                  ? _pickAndUploadImageWeb
+                  : _pickAndUploadImageMobile,
             ),
             if (_uploadedImageUrl != null)
               Padding(
@@ -398,19 +467,21 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             DropdownButtonFormField<String>(
               value: _categoriaSel,
               decoration: _dec('Categoría'),
-              items: _categorias.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              items: _categorias
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
               onChanged: (v) => setState(() => _categoriaSel = v),
               validator: (v) => v == null ? 'Campo obligatorio' : null,
             ),
             const SizedBox(height: spacing),
-             TypeAheadField<String>(
+            TypeAheadField<String>(
               controller: _direccionCtrl,
               suggestionsCallback: (pattern) async {
                 final q = pattern.trim();
                 if (q.length < 3) return const <String>[];
                 return await _geocodingService.searchAddresses(q);
               },
-               builder: (context, controller, focusNode) {
+              builder: (context, controller, focusNode) {
                 return TextFormField(
                   controller: controller,
                   focusNode: focusNode,
@@ -426,24 +497,34 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : IconButton(
-                            icon: Icon(_isFetchingLocation ? Icons.location_searching : Icons.my_location),
-                            onPressed: _isFetchingLocation ? null : _useCurrentLocation,
+                            icon: Icon(
+                              _isFetchingLocation
+                                  ? Icons.location_searching
+                                  : Icons.my_location,
+                            ),
+                            onPressed: _isFetchingLocation
+                                ? null
+                                : _useCurrentLocation,
                             tooltip: 'Usar mi ubicación',
                           ),
                   ),
                   onChanged: (_) => _scheduleGeocode(),
                 );
               },
-                itemBuilder: (context, String suggestion) => ListTile(
+              itemBuilder: (context, String suggestion) => ListTile(
                 leading: const Icon(Icons.location_on_outlined),
-                title: Text(suggestion, maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text(
+                  suggestion,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-                onSelected: (String suggestion) async {
+              onSelected: (String suggestion) async {
                 _direccionCtrl.text = suggestion;
                 await _onAddressChanged();
                 FocusScope.of(context).unfocus();
               },
-                loadingBuilder: (_) => const Padding(
+              loadingBuilder: (_) => const Padding(
                 padding: EdgeInsets.all(12),
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
@@ -453,7 +534,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               ),
               hideOnEmpty: true,
             ),
-              if (_lat != null && _lon != null) ...[
+            if (_lat != null && _lon != null) ...[
               const SizedBox(height: spacing),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -464,23 +545,32 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Ubicación: ${_lat!.toStringAsFixed(4)}, ${_lon!.toStringAsFixed(4)}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ],
-              const SizedBox(height: spacing),
+            const SizedBox(height: spacing),
             TextFormField(
               controller: _veracidadCtrl,
               decoration: _dec('Veracidad (%) - Opcional', hint: '0 a 100'),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               validator: _optPercent,
             ),
             const SizedBox(height: 20),
@@ -498,7 +588,9 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                 label: Text(_isSubmitting ? 'Enviando...' : 'Crear reporte'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),

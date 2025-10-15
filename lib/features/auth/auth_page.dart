@@ -56,9 +56,9 @@ class _AuthPageState extends State<AuthPage> {
       _fase = '';
     });
 
-  final user = _username.text.trim();
-  final email = _email.text.trim();
-  final pass = _password.text;
+    final user = _username.text.trim();
+    final email = _email.text.trim();
+    final pass = _password.text;
 
     try {
       if (_isLogin) {
@@ -77,17 +77,25 @@ class _AuthPageState extends State<AuthPage> {
           if (m['detail'] is String) detail = m['detail'] as String;
         } else if (backend['data'] is List) {
           final list = backend['data'] as List;
-          if (list.isNotEmpty && list.first is Map && (list.first as Map)['detail'] is String) {
+          if (list.isNotEmpty &&
+              list.first is Map &&
+              (list.first as Map)['detail'] is String) {
             detail = (list.first as Map)['detail'] as String;
           }
         }
 
-        final token = backend['access_token'] as String? ??
-            (backend['data'] is Map ? (backend['data'] as Map)['access_token'] as String? : null);
+        final token =
+            backend['access_token'] as String? ??
+            (backend['data'] is Map
+                ? (backend['data'] as Map)['access_token'] as String?
+                : null);
         final hasToken = token != null && token.isNotEmpty;
         final ok = (code == 200 || code == null) && hasToken && detail == null;
         if (!ok) {
-          setState(() => _msg = 'Login fallido: ${detail ?? 'respuesta inválida de la API'}');
+          setState(
+            () => _msg =
+                'Login fallido: ${detail ?? 'respuesta inválida de la API'}',
+          );
           return;
         }
 
@@ -98,11 +106,19 @@ class _AuthPageState extends State<AuthPage> {
             widget.auth.backendLoggedIn = true;
 
             // ID de usuario
-            dynamic id = backend['user_id'] ?? backend['id'] ?? backend['userId'];
+            dynamic id =
+                backend['user_id'] ?? backend['id'] ?? backend['userId'];
             if (id == null && backend['data'] is Map) {
               final m = backend['data'] as Map;
-              id = m['user_id'] ?? m['id'] ?? m['userId'] ??
-                  (m['user'] is Map ? (m['user']['id'] ?? m['user']['user_id'] ?? m['user']['userId']) : null);
+              id =
+                  m['user_id'] ??
+                  m['id'] ??
+                  m['userId'] ??
+                  (m['user'] is Map
+                      ? (m['user']['id'] ??
+                            m['user']['user_id'] ??
+                            m['user']['userId'])
+                      : null);
             }
             if (id == null && backend['user'] is Map) {
               final um = backend['user'] as Map;
@@ -123,7 +139,8 @@ class _AuthPageState extends State<AuthPage> {
               if (candidate is String) uname = candidate;
             }
             uname ??= (backend['username'] ?? backend['name']) as String?;
-            if (uname != null && uname.isNotEmpty) widget.auth.backendUsername = uname;
+            if (uname != null && uname.isNotEmpty)
+              widget.auth.backendUsername = uname;
 
             // Guardar access_token del backend
             if (hasToken) {
@@ -144,11 +161,17 @@ class _AuthPageState extends State<AuthPage> {
         });
 
         final created = await _withPhase('Registro API', () async {
-          return await widget.api.createUser(user: user, email: email, psswd: pass);
+          return await widget.api.createUser(
+            user: user,
+            email: email,
+            psswd: pass,
+          );
         });
 
-        setState(() => _msg =
-            'Te enviamos un correo para confirmar. Luego podrás iniciar sesión.\n(API: ${created['status'] ?? '201'})');
+        setState(
+          () => _msg =
+              'Te enviamos un correo para confirmar. Luego podrás iniciar sesión.\n(API: ${created['status'] ?? '201'})',
+        );
       }
     } catch (e) {
       // Si algo falla después de haber creado sesión en Supabase, asegura limpiar.
@@ -174,7 +197,8 @@ class _AuthPageState extends State<AuthPage> {
           body: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
-              child: SingleChildScrollView(  // ✅ ADDED THIS
+              child: SingleChildScrollView(
+                // ✅ ADDED THIS
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(
@@ -186,11 +210,11 @@ class _AuthPageState extends State<AuthPage> {
                           'assets/SS.png',
                           height: 85,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const FlutterLogo(size: 96),
+                          errorBuilder: (_, __, ___) =>
+                              const FlutterLogo(size: 96),
                         ),
                       ),
-            const SizedBox(height: 12),
-           
+                      const SizedBox(height: 12),
 
                       Card(
                         child: Padding(
@@ -200,8 +224,10 @@ class _AuthPageState extends State<AuthPage> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(_isLogin ? 'Iniciar sesión' : 'Crear cuenta',
-                                    style: theme.textTheme.titleLarge),
+                                Text(
+                                  _isLogin ? 'Iniciar sesión' : 'Crear cuenta',
+                                  style: theme.textTheme.titleLarge,
+                                ),
                                 const SizedBox(height: 12),
 
                                 // Usuario (tu backend lo requiere)
@@ -214,11 +240,15 @@ class _AuthPageState extends State<AuthPage> {
                                     prefixIcon: Icon(Icons.badge_outlined),
                                   ),
                                   validator: (v) {
-                                    if (v == null || v.trim().isEmpty) return 'Ingresa tu usuario';
-                                    if (v.trim().length < 3) return 'Mínimo 3 caracteres';
+                                    if (v == null || v.trim().isEmpty)
+                                      return 'Ingresa tu usuario';
+                                    if (v.trim().length < 3)
+                                      return 'Mínimo 3 caracteres';
                                     return null;
                                   },
-                                  onFieldSubmitted: (_) => _isLogin ? _passNode.requestFocus() : _emailNode.requestFocus(),
+                                  onFieldSubmitted: (_) => _isLogin
+                                      ? _passNode.requestFocus()
+                                      : _emailNode.requestFocus(),
                                 ),
                                 const SizedBox(height: 8),
                                 if (!_isLogin) ...[
@@ -233,11 +263,14 @@ class _AuthPageState extends State<AuthPage> {
                                       prefixIcon: Icon(Icons.email_outlined),
                                     ),
                                     validator: (v) {
-                                      if (v == null || v.trim().isEmpty) return 'Ingresa tu email';
-                                      if (!v.contains('@')) return 'Email no válido';
+                                      if (v == null || v.trim().isEmpty)
+                                        return 'Ingresa tu email';
+                                      if (!v.contains('@'))
+                                        return 'Email no válido';
                                       return null;
                                     },
-                                    onFieldSubmitted: (_) => _passNode.requestFocus(),
+                                    onFieldSubmitted: (_) =>
+                                        _passNode.requestFocus(),
                                   ),
                                   const SizedBox(height: 8),
                                 ],
@@ -253,8 +286,10 @@ class _AuthPageState extends State<AuthPage> {
                                     prefixIcon: Icon(Icons.lock_outline),
                                   ),
                                   validator: (v) {
-                                    if (v == null || v.isEmpty) return 'Ingresa tu contraseña';
-                                    if (v.length < 6) return 'Mínimo 6 caracteres';
+                                    if (v == null || v.isEmpty)
+                                      return 'Ingresa tu contraseña';
+                                    if (v.length < 6)
+                                      return 'Mínimo 6 caracteres';
                                     return null;
                                   },
                                   onFieldSubmitted: (_) => _submit(),
@@ -262,14 +297,19 @@ class _AuthPageState extends State<AuthPage> {
                                 const SizedBox(height: 12),
 
                                 if (_fase.isNotEmpty)
-                                  Text('Fase: $_fase', style: const TextStyle(color: Colors.grey)),
+                                  Text(
+                                    'Fase: $_fase',
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
                                 if (_msg != null) ...[
                                   const SizedBox(height: 4),
                                   Text(
                                     _msg!,
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: _msg!.startsWith('Login OK') || _msg!.startsWith('Te enviamos')
+                                      color:
+                                          _msg!.startsWith('Login OK') ||
+                                              _msg!.startsWith('Te enviamos')
                                           ? Colors.green
                                           : Colors.red,
                                     ),
@@ -282,7 +322,9 @@ class _AuthPageState extends State<AuthPage> {
                                     Expanded(
                                       child: FilledButton(
                                         style: FilledButton.styleFrom(
-                                          backgroundColor: const Color(0xFF9B080C),
+                                          backgroundColor: const Color(
+                                            0xFF9B080C,
+                                          ),
                                           foregroundColor: Colors.white,
                                         ),
                                         onPressed: _busy ? null : _submit,
@@ -290,11 +332,19 @@ class _AuthPageState extends State<AuthPage> {
                                             ? const SizedBox(
                                                 height: 20,
                                                 width: 20,
-                                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
                                               )
                                             : Text(
-                                                _isLogin ? 'Entrar' : 'Crear cuenta',
-                                                style: const TextStyle(color: Colors.white),
+                                                _isLogin
+                                                    ? 'Entrar'
+                                                    : 'Crear cuenta',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                ),
                                               ),
                                       ),
                                     ),
@@ -302,17 +352,23 @@ class _AuthPageState extends State<AuthPage> {
                                 ),
                                 const SizedBox(height: 8),
                                 TextButton(
-                                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                  ),
                                   onPressed: _busy
                                       ? null
                                       : () => setState(() {
-                                            _isLogin = !_isLogin;
-                                            _msg = null;
-                                            _fase = '';
-                                          }),
+                                          _isLogin = !_isLogin;
+                                          _msg = null;
+                                          _fase = '';
+                                        }),
                                   child: Text(
-                                    _isLogin ? '¿Crear cuenta?' : '¿Ya tengo cuenta?',
-                                    style: const TextStyle(color: Color(0xFF9B080C)),
+                                    _isLogin
+                                        ? '¿Crear cuenta?'
+                                        : '¿Ya tengo cuenta?',
+                                    style: const TextStyle(
+                                      color: Color(0xFF9B080C),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -323,7 +379,7 @@ class _AuthPageState extends State<AuthPage> {
                     ],
                   ),
                 ),
-              ),  // ✅ CLOSED SingleChildScrollView here
+              ), // ✅ CLOSED SingleChildScrollView here
             ),
           ),
         ),
