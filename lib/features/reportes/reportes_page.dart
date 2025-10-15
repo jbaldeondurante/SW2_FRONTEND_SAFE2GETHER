@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../core/api_client.dart';
+import '../../core/env.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/supabase_service.dart';
@@ -19,18 +20,20 @@ class ReportesPage extends StatefulWidget {
 }
 
 class _ReportesPageState extends State<ReportesPage> {
-  static const String _base = 'http://127.0.0.1:8000';
+  late final String _base;
   late Future<_PageData> _future;
 
   @override
   void initState() {
     super.initState();
+    _base = Env.apiBaseUrl;
     _future = _fetchAll();
   }
 
   Future<_PageData> _fetchAll() async {
     final currentUserId = GetIt.instance<SupabaseService>().backendUserId;
-    final r = await http.get(Uri.parse('$_base/Reportes'));
+  // Pide 50 últimos reportes por defecto
+  final r = await http.get(Uri.parse('$_base/Reportes?limit=50&offset=0&order=created_at.desc'));
     if (r.statusCode != 200) {
       throw Exception('HTTP ${r.statusCode} al obtener Reportes');
     }
@@ -48,67 +51,104 @@ class _ReportesPageState extends State<ReportesPage> {
       return b.id.compareTo(a.id); // fallback por id desc
     });
 
-    // Traer nombres de usuario (sin duplicados)
-    final ids = reports.map((e) => e.userId).toSet();
+    // Traer nombres de usuario en bloque
+    final ids = reports.map((e) => e.userId).toSet().toList();
     final names = <int, String>{};
-    await Future.wait(
-      ids.map((id) async {
-        try {
-          final u = await http.get(Uri.parse('$_base/users/$id'));
-          if (u.statusCode == 200) {
-            final data = jsonDecode(u.body);
-            names[id] = (data is Map && data['user'] != null)
-                ? data['user'].toString()
-                : 'Usuario $id';
-          } else {
-            names[id] = 'Usuario $id';
+    if (ids.isNotEmpty) {
+      bool bulkOk = false;
+      try {
+        final bulk = await http.get(Uri.parse('$_base/users/bulk?ids=${ids.join(',')}'));
+        if (bulk.statusCode == 200) {
+          final List list = jsonDecode(bulk.body);
+          for (final it in list) {
+            if (it is Map<String, dynamic>) {
+              final id = (it['id'] as num?)?.toInt();
+              if (id != null) {
+                names[id] = (it['user'] ?? 'Usuario $id').toString();
+              }
+            }
           }
-        } catch (_) {
-          names[id] = 'Usuario $id';
+          bulkOk = true;
         }
-      }),
-    );
+      } catch (_) {}
+      // Fallback per-id si bulk falló o quedó vacío
+      if (!bulkOk || names.length < ids.length) {
+        final missing = ids.where((id) => !names.containsKey(id));
+        await Future.wait(
+          missing.map((id) async {
+            try {
+              final u = await http.get(Uri.parse('$_base/users/$id'));
+              if (u.statusCode == 200) {
+                final data = jsonDecode(u.body);
+                names[id] = (data is Map && data['user'] != null)
+                    ? data['user'].toString()
+                    : 'Usuario $id';
+              } else {
+                names[id] = 'Usuario $id';
+              }
+            } catch (_) {
+              names[id] = 'Usuario $id';
+            }
+          }),
+        );
+      }
+    }
 
     // Traer adjuntos (imagenes) y cruzar por reporte_id
-    final adjRes = await http.get(Uri.parse('$_base/Adjunto'));
+    // Traer adjuntos solo de estos reportes (bulk)
     final imagenesPorReporte = <int, List<String>>{};
-    if (adjRes.statusCode == 200) {
-      final adjuntos = jsonDecode(adjRes.body) as List<dynamic>;
-      for (final adj in adjuntos) {
-        if (adj is Map<String, dynamic> &&
-            adj['reporte_id'] != null &&
-            adj['url'] != null) {
-          final tipo = adj['tipo']?.toString().toLowerCase();
-          final url = (adj['url'] as String).toString();
-          // Aceptar varios tipos comunes y, si no hay tipo, inferir por extensión de la URL
-          const tiposValidos = {
-            'foto',
-            'imagen',
-            'image',
-            'img',
-            'picture',
-            'photo',
-          };
-          final lowerUrl = url.toLowerCase();
-          const exts = [
-            '.jpg',
-            '.jpeg',
-            '.png',
-            '.gif',
-            '.webp',
-            '.bmp',
-            '.svg',
-            '.heic',
-            '.heif',
-          ];
-          final looksLikeImage = exts.any((e) => lowerUrl.contains(e));
-
-          if ((tipo != null && tiposValidos.contains(tipo)) ||
-              (tipo == null || tipo.isEmpty) && looksLikeImage) {
-            final rid = adj['reporte_id'] as int;
-            imagenesPorReporte.putIfAbsent(rid, () => []).add(url);
+    if (reports.isNotEmpty) {
+      bool bulkOk = false;
+      try {
+        final rids = reports.map((e) => e.id).join(',');
+        final adjRes = await http.get(Uri.parse('$_base/Adjunto/by-reporte-ids?ids=$rids'));
+        if (adjRes.statusCode == 200) {
+          final adjuntos = jsonDecode(adjRes.body) as List<dynamic>;
+          for (final adj in adjuntos) {
+            if (adj is Map<String, dynamic> &&
+                adj['reporte_id'] != null &&
+                adj['url'] != null) {
+              final tipo = adj['tipo']?.toString().toLowerCase();
+              final url = (adj['url'] as String).toString();
+              const tiposValidos = {
+                'foto', 'imagen', 'image', 'img', 'picture', 'photo',
+              };
+              final lowerUrl = url.toLowerCase();
+              const exts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif'];
+              final looksLikeImage = exts.any((e) => lowerUrl.contains(e));
+              if ((tipo != null && tiposValidos.contains(tipo)) ||
+                  (tipo == null || tipo.isEmpty) && looksLikeImage) {
+                final rid = (adj['reporte_id'] as num).toInt();
+                imagenesPorReporte.putIfAbsent(rid, () => []).add(url);
+              }
+            }
           }
+          bulkOk = true;
         }
+      } catch (_) {}
+      // Fallback per-report si bulk falló: pegar a /Adjunto/reporte/{id}
+      if (!bulkOk) {
+        await Future.wait(
+          reports.map((rep) async {
+            try {
+              final resAdj = await http.get(Uri.parse('$_base/Adjunto/reporte/${rep.id}'));
+              if (resAdj.statusCode == 200) {
+                final adjuntos = jsonDecode(resAdj.body) as List<dynamic>;
+                for (final adj in adjuntos) {
+                  if (adj is Map<String, dynamic> && adj['url'] != null) {
+                    final url = (adj['url'] as String).toString();
+                    final lowerUrl = url.toLowerCase();
+                    const exts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif'];
+                    final looksLikeImage = exts.any((e) => lowerUrl.contains(e));
+                    if (looksLikeImage) {
+                      imagenesPorReporte.putIfAbsent(rep.id, () => []).add(url);
+                    }
+                  }
+                }
+              }
+            } catch (_) {}
+          }),
+        );
       }
     }
 
@@ -401,7 +441,7 @@ class _ReportCard extends StatefulWidget {
 }
 
 class _ReportCardState extends State<_ReportCard> {
-  static const String _base = 'http://127.0.0.1:8000';
+  final String _base = Env.apiBaseUrl;
   late int _upvotes;
   late int _downvotes;
   bool _updatingUp = false;
@@ -1214,7 +1254,20 @@ class _ImageGallery extends StatefulWidget {
 }
 
 class _ImageGalleryState extends State<_ImageGallery> {
-  int? _hoveredIndex;
+  late final PageController _pageController;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1235,30 +1288,18 @@ class _ImageGalleryState extends State<_ImageGallery> {
   }
 
   Widget _buildImageContent() {
-    if (widget.images.length == 1) {
-      return _buildSingleImageFixed(widget.images[0], 0);
-    } else if (widget.images.length == 2) {
-      // Dos imágenes lado a lado en contenedor fijo
-      return Row(
-        children: [
-          Expanded(child: _buildSingleImageFixed(widget.images[0], 0)),
-          const SizedBox(width: 2),
-          Expanded(child: _buildSingleImageFixed(widget.images[1], 1)),
-        ],
-      );
-    } else {
-      // Múltiples imágenes con PageView (deslizamiento lateral)
-      return _buildPageView();
-    }
+    // Mostrar SIEMPRE como carrusel (PageView), incluso con 1 o 2 imágenes
+    return _buildPageView();
   }
 
   Widget _buildPageView() {
     return Stack(
       children: [
         PageView.builder(
+          controller: _pageController,
           itemCount: widget.images.length,
           onPageChanged: (index) {
-            setState(() => _hoveredIndex = index);
+            setState(() => _currentIndex = index);
           },
           itemBuilder: (ctx, idx) {
             return GestureDetector(
@@ -1283,7 +1324,7 @@ class _ImageGalleryState extends State<_ImageGallery> {
                   height: 6,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: (_hoveredIndex ?? 0) == index
+                    color: _currentIndex == index
                         ? Colors.white
                         : Colors.white.withOpacity(0.4),
                   ),
@@ -1291,33 +1332,70 @@ class _ImageGalleryState extends State<_ImageGallery> {
               ),
             ),
           ),
-        // Contador en esquina
-        Positioned(
-          top: 8,
-          right: 8,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.photo_library, size: 14, color: Colors.white),
-                const SizedBox(width: 5),
-                Text(
-                  '${(_hoveredIndex ?? 0) + 1}/${widget.images.length}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+        // Contador en esquina (sólo si hay más de 1 imagen)
+        if (widget.images.length > 1)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.photo_library, size: 14, color: Colors.white),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${_currentIndex + 1}/${widget.images.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
+
+        // Flechas de navegación (prev/next) para carrusel
+        if (widget.images.length > 1)
+          Positioned(
+            left: 8,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: _NavButton(
+                icon: Icons.chevron_left,
+                onPressed: _currentIndex > 0
+                    ? () => _pageController.previousPage(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOut,
+                        )
+                    : null,
+              ),
+            ),
+          ),
+        if (widget.images.length > 1)
+          Positioned(
+            right: 8,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: _NavButton(
+                icon: Icons.chevron_right,
+                onPressed: _currentIndex < widget.images.length - 1
+                    ? () => _pageController.nextPage(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOut,
+                        )
+                    : null,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -1433,6 +1511,32 @@ class _ImageViewerState extends State<_ImageViewer> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// Botón circular para navegar en el carrusel
+class _NavButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  const _NavButton({required this.icon, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 150),
+      opacity: enabled ? 0.9 : 0.4,
+      child: Material(
+        color: Colors.black.withOpacity(0.5),
+        shape: const CircleBorder(),
+        child: IconButton(
+          icon: Icon(icon, color: Colors.white),
+          onPressed: onPressed,
+          tooltip: icon == Icons.chevron_left ? 'Anterior' : 'Siguiente',
+        ),
       ),
     );
   }

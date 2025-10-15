@@ -10,9 +10,11 @@ import 'package:http/http.dart' as http;
 import 'package:get_it/get_it.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../../core/supabase_service.dart';
 import '../../core/geocoding_service.dart';
+import '../../core/env.dart';
 
 class ReportesCreate extends StatelessWidget {
   const ReportesCreate({Key? key}) : super(key: key);
@@ -70,9 +72,9 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   ];
   String? _categoriaSel;
   bool _isSubmitting = false;
-  static const String _endpoint = 'http://127.0.0.1:8000/Reportes';
-  static const String _adjuntoEndpoint = 'http://127.0.0.1:8000/Adjunto';
-  String? _uploadedImageUrl;
+  late final String _base;
+  final List<String> _uploadedImageUrls = [];
+  bool _isUploadingImages = false;
 
   @override
   void dispose() {
@@ -81,6 +83,12 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     _descripcionCtrl.dispose();
     _direccionCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _base = Env.apiBaseUrl;
   }
 
   InputDecoration _dec(String label, {String? hint, Widget? suffix}) {
@@ -151,54 +159,71 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     }
   }
 
-  Future<void> _pickAndUploadImageWeb() async {
-    final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image == null) return;
-    // En Web, image.path puede no tener extensión (p.ej., 'blob'), usar image.name.
-    String ext;
-    final mimeHint = image.mimeType; // e.g., image/png, image/jpeg
-    if (image.name.contains('.')) {
-      ext = image.name.split('.').last.toLowerCase();
-    } else {
-      // fallback seguro para inline render
-      ext = 'jpeg';
+  Future<void> _pickAndUploadImagesWeb() async {
+    setState(() => _isUploadingImages = true);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.image,
+      );
+      if (result == null || result.files.isEmpty) return;
+      // Limitar a 10 para evitar cargas enormes
+      final files = result.files.take(10 - _uploadedImageUrls.length);
+      for (final f in files) {
+        final bytes = f.bytes;
+        if (bytes == null) continue;
+        final name = f.name;
+        final ext = name.contains('.') ? name.split('.').last.toLowerCase() : 'jpeg';
+        final mime = _mimeFromExt(ext);
+        final url = await _uploadBytes(bytes, ext, originalName: name, overrideMime: mime);
+        if (!mounted) return;
+        if (url != null) {
+          setState(() => _uploadedImageUrls.add(url));
+        }
+      }
+      if (mounted && files.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${_uploadedImageUrls.length} imagen(es) listas')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudieron seleccionar imágenes: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingImages = false);
     }
-    final bytes = await image.readAsBytes();
-    // Si el mimeType viene del picker, úsalo para forzar content-type correcto
-    // Prefer a valid image/* mime; if missing or octet-stream, compute from extension
-    String? finalMime = mimeHint;
-    if (finalMime == null ||
-        finalMime.isEmpty ||
-        finalMime == 'application/octet-stream' ||
-        !finalMime.startsWith('image/')) {
-      finalMime = _mimeFromExt(ext);
-    }
-    await _uploadBytes(
-      bytes,
-      ext,
-      originalName: image.name,
-      overrideMime: finalMime,
-    );
   }
 
-  Future<void> _pickAndUploadImageMobile() async {
-    final picker = ImagePicker();
-    // imageQuality fuerza re-encoding a JPEG en iOS/Android, evitando HEIC/HEIF
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 95,
-    );
-    if (pickedFile == null) return;
-    // Al comprimir (imageQuality) normalmente obtenemos JPEG; forzamos a JPG para servir inline
-    String ext = 'jpg';
-    final bytes = await File(pickedFile.path).readAsBytes();
-    await _uploadBytes(
-      bytes,
-      ext,
-      originalName: pickedFile.name,
-      overrideMime: 'image/jpeg',
-    );
+  Future<void> _pickAndUploadImagesMobile() async {
+    setState(() => _isUploadingImages = true);
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickMultiImage(imageQuality: 90);
+      if (picked.isEmpty) return;
+      final slots = 10 - _uploadedImageUrls.length;
+      for (final x in picked.take(slots)) {
+        final bytes = await File(x.path).readAsBytes();
+        final url = await _uploadBytes(bytes, 'jpg', originalName: x.name, overrideMime: 'image/jpeg');
+        if (!mounted) return;
+        if (url != null) {
+          setState(() => _uploadedImageUrls.add(url));
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${_uploadedImageUrls.length} imagen(es) listas')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudieron seleccionar imágenes: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingImages = false);
+    }
   }
 
   String _mimeFromExt(String ext) {
@@ -222,7 +247,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     }
   }
 
-  Future<void> _uploadBytes(
+  Future<String?> _uploadBytes(
     Uint8List bytes,
     String ext, {
     String? originalName,
@@ -260,16 +285,11 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             },
           )
           .toString();
-      if (!mounted) return;
-      setState(() => _uploadedImageUrl = imageUrl);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Imagen subida correctamente')),
-      );
+      return imageUrl;
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo subir la imagen: ${e.toString()}')),
-      );
+      // Log y continuar; el caller mostrará feedback general
+      debugPrint('Error subiendo imagen: $e');
+      return null;
     }
   }
 
@@ -310,7 +330,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         "cantidad_downvotes": 0,
       };
       final res = await http.post(
-        Uri.parse(_endpoint),
+        Uri.parse('$_base/Reportes'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(payload),
       );
@@ -319,35 +339,27 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         final created = jsonDecode(res.body);
         final reporteId = created is Map ? created['id'] as int? : null;
 
-        // Paso 4: si hay imagen subida, registrar adjunto en backend
-        try {
-          if (reporteId != null && _uploadedImageUrl != null) {
-            final adjPayload = {
-              'reporte_id': reporteId,
-              'url': _uploadedImageUrl,
-              'tipo': 'image',
-            };
-            final adjRes = await http.post(
-              Uri.parse(_adjuntoEndpoint),
-              headers: {"Content-Type": "application/json"},
-              body: jsonEncode(adjPayload),
-            );
-            if (adjRes.statusCode < 200 || adjRes.statusCode >= 300) {
-              // No bloquear el flujo si falla, solo avisar
-              String msg = 'Adjunto no registrado (HTTP ${adjRes.statusCode})';
-              try {
-                final body = jsonDecode(adjRes.body);
-                if (body is Map && body['detail'] != null)
-                  msg = body['detail'].toString();
-              } catch (_) {}
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(msg)));
+        // Paso 4: si hay imágenes subidas, registrar adjuntos en backend
+        if (reporteId != null && _uploadedImageUrls.isNotEmpty) {
+          for (final url in _uploadedImageUrls) {
+            try {
+              final adjPayload = {
+                'reporte_id': reporteId,
+                'url': url,
+                'tipo': 'image',
+              };
+              final adjRes = await http.post(
+                Uri.parse('$_base/Adjunto'),
+                headers: {"Content-Type": "application/json"},
+                body: jsonEncode(adjPayload),
+              );
+              if (adjRes.statusCode < 200 || adjRes.statusCode >= 300) {
+                debugPrint('Adjunto no registrado (HTTP ${adjRes.statusCode})');
+              }
+            } catch (e) {
+              debugPrint('Error registrando adjunto: $e');
             }
           }
-        } catch (e) {
-          // Continuar aunque falle el registro del adjunto
-          debugPrint('Fallo al registrar adjunto: $e');
         }
         // Mostrar ventana emergente de confirmación con número de reporte y resumen
         if (mounted) {
@@ -396,7 +408,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
           _direccionCtrl.clear();
           _lat = null;
           _lon = null;
-          _uploadedImageUrl = null;
+          _uploadedImageUrls.clear();
         });
         if (mounted) Navigator.of(context).pop(true);
       } else {
@@ -462,15 +474,61 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
             const SizedBox(height: 16),
             ElevatedButton.icon(
               icon: const Icon(Icons.photo_library),
-              label: const Text('Adjuntar imagen'),
-              onPressed: kIsWeb
-                  ? _pickAndUploadImageWeb
-                  : _pickAndUploadImageMobile,
+              label: Text(_isUploadingImages
+                  ? 'Subiendo imágenes...'
+                  : 'Adjuntar imágenes'),
+              onPressed: _isUploadingImages
+                  ? null
+                  : (kIsWeb ? _pickAndUploadImagesWeb : _pickAndUploadImagesMobile),
             ),
-            if (_uploadedImageUrl != null)
+            if (_uploadedImageUrls.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Image.network(_uploadedImageUrl!, height: 120),
+                child: SizedBox(
+                  height: 100,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _uploadedImageUrls.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final url = _uploadedImageUrls[i];
+                      return Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              url,
+                              height: 100,
+                              width: 100,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: InkWell(
+                              onTap: () {
+                                setState(() => _uploadedImageUrls.removeAt(i));
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.all(2),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
               ),
             const SizedBox(height: spacing),
             DropdownButtonFormField<String>(
