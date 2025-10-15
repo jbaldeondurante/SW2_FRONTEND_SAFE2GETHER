@@ -294,6 +294,27 @@ class _AuthPageState extends State<AuthPage> {
                                   },
                                   onFieldSubmitted: (_) => _submit(),
                                 ),
+                                // 🆕 Botón de recuperar contraseña (solo en modo login)
+                                if (_isLogin) ...[
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: _busy ? null : () => context.go('/password-reset'),
+                                      child: const Text(
+                                        '¿Olvidaste tu contraseña?',
+                                        style: TextStyle(
+                                          color: Color(0xFF9B080C),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+
+                                const SizedBox(height: 12),
+
+
                                 const SizedBox(height: 12),
 
                                 if (_fase.isNotEmpty)

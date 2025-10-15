@@ -17,6 +17,7 @@ import 'features/home/home_page.dart';
 import 'features/reportes/reportes_page.dart';
 import 'features/mapa/mapa_page.dart';
 import 'features/alertas/alertas_page.dart';
+import 'features/auth/password_reset_page.dart';
 
 final sl = GetIt.instance;
 
@@ -116,6 +117,15 @@ class _AppState extends State<App> {
           builder: (_, __) =>
               AuthPage(auth: sl<SupabaseService>(), api: sl<ApiClient>()),
         ),
+        // 🆕 MOVER PASSWORD-RESET ANTES DE LAS RUTAS PROTEGIDAS
+        GoRoute(
+          path: '/password-reset',
+          name: 'password-reset',
+          builder: (_, state) {
+            final token = state.uri.queryParameters['token'];
+            return PasswordResetPage(token: token);
+          },
+        ),
         GoRoute(
           path: '/home',
           name: 'home',
@@ -143,11 +153,17 @@ class _AppState extends State<App> {
         final user = Supabase.instance.client.auth.currentUser;
         final backendOk = sl<SupabaseService>().backendLoggedIn;
         final loggingIn = state.matchedLocation == '/login';
+        final resettingPassword = state.matchedLocation == '/password-reset'; // 🆕
+
+        // 🆕 Permitir acceso a password-reset sin autenticación
+        if (resettingPassword) return null;
 
         // Si no hay sesión Supabase y backend no ha confirmado, fuerza /login
         if (user == null && !loggingIn && !backendOk) return '/login';
+        
         // Si ya hay sesión (o backend OK) y estás en /login, redirige a /home
         if ((user != null || backendOk) && loggingIn) return '/home';
+        
         return null;
       },
     );
