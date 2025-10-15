@@ -305,10 +305,12 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         body: jsonEncode(payload),
       );
       if (res.statusCode >= 200 && res.statusCode < 300) {
+        // Parsear respuesta para obtener el ID del reporte creado
+        final created = jsonDecode(res.body);
+        final reporteId = created is Map ? created['id'] as int? : null;
+
         // Paso 4: si hay imagen subida, registrar adjunto en backend
         try {
-          final created = jsonDecode(res.body);
-          final reporteId = created is Map ? created['id'] as int? : null;
           if (reporteId != null && _uploadedImageUrl != null) {
             final adjPayload = {
               'reporte_id': reporteId,
@@ -337,9 +339,43 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
           // Continuar aunque falle el registro del adjunto
           debugPrint('Fallo al registrar adjunto: $e');
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reporte creado con éxito ✅')),
-        );
+        // Mostrar ventana emergente de confirmación con número de reporte y resumen
+        if (mounted) {
+          final titulo = _tituloCtrl.text.trim();
+          final categoria = _categoriaSel ?? '-';
+          final direccion = _direccionCtrl.text.trim();
+          final coords = (_lat != null && _lon != null)
+              ? '(${_lat!.toStringAsFixed(4)}, ${_lon!.toStringAsFixed(4)})'
+              : null;
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Reporte registrado'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (reporteId != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text('N° de reporte: #$reporteId',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  Text('Título: $titulo'),
+                  Text('Categoría: $categoria'),
+                  if (direccion.isNotEmpty) Text('Dirección: $direccion'),
+                  if (coords != null) Text('Ubicación: $coords'),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Aceptar'),
+                ),
+              ],
+            ),
+          );
+        }
         setState(() {
           _formKey.currentState!.reset();
           _categoriaSel = null;
