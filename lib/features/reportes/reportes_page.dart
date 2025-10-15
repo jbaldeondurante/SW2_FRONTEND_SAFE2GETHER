@@ -404,6 +404,13 @@ class _ReportCardState extends State<_ReportCard> {
   int? _reactionId; // id en tabla Reaccion
   String? _reactionTipo; // 'upvote' | 'downvote' | null
   double? _veracidad; // porcentaje (0-100)
+  // Comentarios
+  bool _commentsOpen = false;
+  bool _loadingComments = false;
+  bool _postingComment = false;
+  final TextEditingController _commentCtrl = TextEditingController();
+  List<_Comment> _comments = [];
+  final Map<int, String> _usersCache = {};
 
   @override
   void initState() {
@@ -413,6 +420,12 @@ class _ReportCardState extends State<_ReportCard> {
     _reactionId = widget.userReaction?.id;
     _reactionTipo = widget.userReaction?.tipo;
     _veracidad = widget.report.veracidad;
+  }
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
   }
 
   Color _estadoColor(String s) {
@@ -801,12 +814,341 @@ class _ReportCardState extends State<_ReportCard> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    Divider(height: 1, color: Colors.grey[800]),
+                    const SizedBox(height: 8),
+                    // Comentarios
+                    _buildCommentsSection(theme),
                   ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCommentsSection(ThemeData theme) {
+    final count = _comments.isNotEmpty || _loadingComments
+        ? _comments.length
+        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: () async {
+                setState(() => _commentsOpen = !_commentsOpen);
+                if (_commentsOpen && _comments.isEmpty && !_loadingComments) {
+                  await _loadComments();
+                }
+              },
+              icon: Icon(
+                _commentsOpen
+                    ? Icons.expand_less
+                    : Icons.comment_outlined,
+                size: 18,
+              ),
+              label: Text(
+                'Comentarios' + (count != null ? ' ($count)' : ''),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const Spacer(),
+            if (_loadingComments)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+          ],
+        ),
+        if (_commentsOpen) ...[
+          const SizedBox(height: 6),
+          if (_loadingComments)
+            const SizedBox(height: 0)
+          else ...[
+            // Lista de comentarios
+            if (_comments.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                child: Text(
+                  'Aún no hay comentarios. ¡Sé el primero en comentar!',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+              )
+            else
+              Column(
+                children: _comments
+                    .map((c) => _CommentTile(
+                          userName: _usersCache[c.userId] ??
+                              'Usuario ${c.userId}',
+                          message: c.mensaje,
+                          createdAt: c.createdAt,
+                        ))
+                    .toList(),
+              ),
+            const SizedBox(height: 8),
+            // Caja para nuevo comentario
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _commentCtrl,
+                    maxLines: null,
+                    minLines: 1,
+                    decoration: InputDecoration(
+                      hintText: widget.currentUserId == null
+                          ? 'Inicia sesión para comentar'
+                          : 'Escribe un comentario…',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFF0E2D52).withOpacity(0.5),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[800]!),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[800]!),
+                      ),
+                    ),
+                    enabled: !_postingComment,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Enviar comentario',
+                  onPressed: _postingComment ? null : _postComment,
+                  icon: _postingComment
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Future<void> _loadComments() async {
+    setState(() => _loadingComments = true);
+    try {
+      final res = await http
+          .get(Uri.parse('$_base/Comentarios/reporte/${widget.report.id}'));
+      if (res.statusCode != 200) {
+        throw Exception('HTTP ${res.statusCode} al obtener comentarios');
+      }
+    final List<dynamic> list = jsonDecode(res.body) as List<dynamic>;
+    final List<_Comment> parsed = list
+      .whereType<Map<String, dynamic>>()
+      .map((e) => _Comment.fromJson(e))
+      .toList();
+      // Orden por fecha asc (antiguo->reciente)
+      parsed.sort((a, b) {
+        final ta = a.createdAt;
+        final tb = b.createdAt;
+        if (ta != null && tb != null) return ta.compareTo(tb);
+        if (ta != null) return -1;
+        if (tb != null) return 1;
+        return a.id.compareTo(b.id);
+      });
+
+      // Cargar nombres de usuario faltantes
+      final Set<int> missingIds = parsed.map((e) => e.userId).toSet()
+        ..removeWhere((int id) => _usersCache.containsKey(id));
+      await Future.wait(missingIds.map((int id) async {
+        try {
+          final u = await http.get(Uri.parse('$_base/users/$id'));
+          if (u.statusCode == 200) {
+            final data = jsonDecode(u.body);
+            _usersCache[id] = (data is Map && data['user'] != null)
+                ? data['user'].toString()
+                : 'Usuario $id';
+          } else {
+            _usersCache[id] = 'Usuario $id';
+          }
+        } catch (_) {
+          _usersCache[id] = 'Usuario $id';
+        }
+      }));
+
+      setState(() => _comments = parsed);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudieron cargar comentarios: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingComments = false);
+    }
+  }
+
+  Future<void> _postComment() async {
+    if (widget.currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicia sesión para comentar')),
+      );
+      return;
+    }
+    final text = _commentCtrl.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El comentario no puede estar vacío')),
+      );
+      return;
+    }
+    setState(() => _postingComment = true);
+    try {
+      final res = await http.post(
+        Uri.parse('$_base/Comentarios'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'reporte_id': widget.report.id,
+          'user_id': widget.currentUserId,
+          'mensaje': text,
+        }),
+      );
+      if (res.statusCode != 201) {
+        throw Exception('HTTP ${res.statusCode} al crear comentario');
+      }
+  final Map<String, dynamic> body = jsonDecode(res.body);
+  final _Comment created = _Comment.fromJson(body);
+      // Asegurar nombre del usuario actual en cache
+      final uid = created.userId;
+      if (!_usersCache.containsKey(uid)) {
+        try {
+          final u = await http.get(Uri.parse('$_base/users/$uid'));
+          if (u.statusCode == 200) {
+            final data = jsonDecode(u.body);
+            _usersCache[uid] = (data is Map && data['user'] != null)
+                ? data['user'].toString()
+                : 'Usuario $uid';
+          } else {
+            _usersCache[uid] = 'Usuario $uid';
+          }
+        } catch (_) {
+          _usersCache[uid] = 'Usuario $uid';
+        }
+      }
+      setState(() {
+        _comments = [..._comments, created];
+        _commentCtrl.clear();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo publicar el comentario: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _postingComment = false);
+    }
+  }
+}
+
+class _Comment {
+  final int id;
+  final int reporteId;
+  final int userId;
+  final String mensaje;
+  final DateTime? createdAt;
+
+  _Comment({
+    required this.id,
+    required this.reporteId,
+    required this.userId,
+    required this.mensaje,
+    required this.createdAt,
+  });
+
+  factory _Comment.fromJson(Map<String, dynamic> j) {
+    DateTime? asT(v) {
+      if (v == null) return null;
+      try {
+        return DateTime.parse('$v');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return _Comment(
+      id: (j['id'] as num?)?.toInt() ?? 0,
+      reporteId: (j['reporte_id'] as num).toInt(),
+      userId: (j['user_id'] as num).toInt(),
+      mensaje: '${j['mensaje'] ?? ''}',
+      createdAt: asT(j['created_at']),
+    );
+  }
+}
+
+class _CommentTile extends StatelessWidget {
+  final String userName;
+  final String message;
+  final DateTime? createdAt;
+
+  const _CommentTile({
+    required this.userName,
+    required this.message,
+    required this.createdAt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.person_outline, size: 18, color: Colors.grey[600]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      userName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    if (createdAt != null)
+                      Text(
+                        '• ${relativeTimeString(createdAt!)}',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 13,
+                        color: Colors.grey[900],
+                      ) ??
+                      TextStyle(fontSize: 13, color: Colors.grey[900]),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
