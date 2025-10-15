@@ -697,19 +697,16 @@ class _ReportCardState extends State<_ReportCard> {
                           ),
                   ),
                   const SizedBox(height: 4),
+                  // Mostrar conteos individuales por separado
                   Text(
-                    '${(_upvotes - _downvotes).abs()}',
+                    '$_upvotes',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: _reactionTipo == 'upvote'
-                          ? Colors.orange
-                          : _reactionTipo == 'downvote'
-                          ? Colors.blue
-                          : Colors.grey[400],
+                      color: Colors.grey[400],
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   IconButton(
                     iconSize: 20,
                     padding: EdgeInsets.zero,
@@ -730,6 +727,15 @@ class _ReportCardState extends State<_ReportCard> {
                                 : Colors.grey[400],
                           ),
                   ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$_downvotes',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[400],
+                        ),
+                      ),
                 ],
               ),
             ),
