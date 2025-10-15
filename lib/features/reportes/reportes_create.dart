@@ -58,9 +58,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     'Asesinato',
     'Otro',
   ];
-  final _estados = const <String>['ACTIVO', 'PENDIENTE', 'CERRADO'];
   String? _categoriaSel;
-  String? _estadoSel = 'ACTIVO';
   bool _isSubmitting = false;
   static const String _endpoint = 'http://127.0.0.1:8000/Reportes';
   static const String _adjuntoEndpoint = 'http://127.0.0.1:8000/Adjunto';
@@ -273,12 +271,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
       ).showSnackBar(const SnackBar(content: Text('Selecciona una categoría')));
       return;
     }
-    if (_estadoSel == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Selecciona un estado')));
-      return;
-    }
     if (_lat == null || _lon == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -304,7 +296,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         "lat": _lat,
         "lon": _lon,
         "direccion": _direccionCtrl.text.trim(),
-        "estado": _estadoSel,
         "cantidad_upvotes": 0,
         "cantidad_downvotes": 0,
       };
@@ -352,7 +343,6 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         setState(() {
           _formKey.currentState!.reset();
           _categoriaSel = null;
-          _estadoSel = 'ACTIVO';
           _tituloCtrl.clear();
           _descripcionCtrl.clear();
           _direccionCtrl.clear();
@@ -404,23 +394,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               ],
             ),
             const SizedBox(height: spacing),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _estadoSel,
-                    decoration: _dec('Estado'),
-                    items: _estados
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _estadoSel = v),
-                    validator: (v) => v == null ? 'Campo obligatorio' : null,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(child: SizedBox.shrink()),
-              ],
-            ),
+            Row(children: const [SizedBox.shrink()]),
             const SizedBox(height: spacing),
             TextFormField(
               controller: _tituloCtrl,

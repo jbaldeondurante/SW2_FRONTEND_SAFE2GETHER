@@ -592,153 +592,36 @@ class _ReportCardState extends State<_ReportCard> {
     final v = _veracidad;
     final vTxt = v == null ? '—' : '${v.toStringAsFixed(0)}%';
     final created = widget.report.createdAt;
+    final theme = Theme.of(context);
+
     return Card(
-      elevation: 0.5,
-      shape: RoundedRectangleBorder(borderRadius: R.br16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 2),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+        side: BorderSide(color: const Color(0xFF08192D), width: 1),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Título + estado
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.report.titulo.isEmpty
-                        ? 'Reporte #${widget.report.id}'
-                        : widget.report.titulo,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: Spacing.md),
-                MetaChip(
-                  icon: Icons.info_outline,
-                  label: widget.report.estado,
-                  color: _estadoColor(widget.report.estado),
-                ),
-              ],
-            ),
-            const SizedBox(height: Spacing.md),
-            Row(
-              children: [
-                const Icon(Icons.person_outline, size: 18),
-                const SizedBox(width: Spacing.sm),
-                Flexible(
-                  child: Text(
-                    widget.userName,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                const SizedBox(width: Spacing.lg),
-                if (created != null)
-                  Text(
-                    relativeTimeString(created),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                  ),
-              ],
-            ),
-            const SizedBox(height: Spacing.md),
-            Text(
-              widget.report.descripcion.trim().isEmpty
-                  ? 'Sin descripción'
-                  : widget.report.descripcion.trim(),
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: Spacing.lg),
-            if (widget.imagenes != null && widget.imagenes!.isNotEmpty) ...[
-              SizedBox(
-                height: 180,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: widget.imagenes!.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(width: Spacing.md),
-                  itemBuilder: (ctx, idx) {
-                    final url = widget.imagenes![idx];
-                    return GestureDetector(
-                      onTap: () => _openImageViewer(
-                        ctx,
-                        widget.imagenes!,
-                        startIndex: idx,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: R.br12,
-                        child: Image.network(
-                          url,
-                          height: 180,
-                          width: 220,
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, err, stack) => Container(
-                            height: 180,
-                            width: 220,
-                            color: Colors.grey[200],
-                            child: const Center(
-                              child: Icon(Icons.broken_image, size: 40),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+            // Columna de votos (estilo Reddit)
+            Container(
+              width: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF08192D),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  bottomLeft: Radius.circular(4),
                 ),
               ),
-              const SizedBox(height: Spacing.lg),
-            ],
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.place_outlined, size: 18),
-                const SizedBox(width: Spacing.sm),
-                Expanded(
-                  child: Text(
-                    widget.report.direccion.isEmpty
-                        ? 'Dirección no especificada'
-                        : widget.report.direccion,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: Spacing.md),
-            Row(
-              children: [
-                const Icon(Icons.verified, size: 18),
-                const SizedBox(width: Spacing.sm),
-                Text('Veracidad: $vTxt'),
-              ],
-            ),
-            if (v != null) ...[
-              const SizedBox(height: Spacing.sm),
-              ClipRRect(
-                borderRadius: R.br12,
-                child: LinearProgressIndicator(
-                  value: (v.clamp(0, 100)) / 100.0,
-                  minHeight: 8,
-                ),
-              ),
-            ],
-            const SizedBox(height: Spacing.lg),
-            // Votos tipo Reddit
-            Row(
-              children: [
-                // Upvote
-                SizedBox(
-                  height: 36,
-                  child: FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _reactionTipo == 'upvote'
-                          ? Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.15)
-                          : null,
-                    ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: _updatingUp ? null : () => _vote(up: true),
                     icon: _updatingUp
                         ? const SizedBox(
@@ -748,23 +631,31 @@ class _ReportCardState extends State<_ReportCard> {
                           )
                         : Icon(
                             _reactionTipo == 'upvote'
-                                ? Icons.thumb_up_alt
-                                : Icons.thumb_up_alt_outlined,
+                                ? Icons.arrow_upward
+                                : Icons.arrow_upward_outlined,
+                            color: _reactionTipo == 'upvote'
+                                ? Colors.orange
+                                : Colors.grey[400],
                           ),
-                    label: Text('$_upvotes'),
                   ),
-                ),
-                const SizedBox(width: Spacing.md),
-                // Downvote
-                SizedBox(
-                  height: 36,
-                  child: FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      foregroundColor: Colors.red[800],
-                      backgroundColor: _reactionTipo == 'downvote'
-                          ? Colors.red.withOpacity(0.12)
-                          : null,
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(_upvotes - _downvotes).abs()}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _reactionTipo == 'upvote'
+                          ? Colors.orange
+                          : _reactionTipo == 'downvote'
+                          ? Colors.blue
+                          : Colors.grey[400],
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  IconButton(
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: _updatingDown ? null : () => _vote(up: false),
                     icon: _updatingDown
                         ? const SizedBox(
@@ -774,24 +665,349 @@ class _ReportCardState extends State<_ReportCard> {
                           )
                         : Icon(
                             _reactionTipo == 'downvote'
-                                ? Icons.thumb_down_alt
-                                : Icons.thumb_down_alt_outlined,
+                                ? Icons.arrow_downward
+                                : Icons.arrow_downward_outlined,
+                            color: _reactionTipo == 'downvote'
+                                ? Colors.blue
+                                : Colors.grey[400],
                           ),
-                    label: Text('$_downvotes'),
+                  ),
+                ],
+              ),
+            ),
+            // Contenido principal
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header compacto: usuario, tiempo, estado
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          widget.userName,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[400],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        if (created != null) ...[
+                          Text(
+                            '• ${relativeTimeString(created)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _estadoColor(
+                              widget.report.estado,
+                            ).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _estadoColor(
+                                widget.report.estado,
+                              ).withOpacity(0.5),
+                            ),
+                          ),
+                          child: Text(
+                            widget.report.estado,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _estadoColor(widget.report.estado),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Título
+                    Text(
+                      widget.report.titulo.isEmpty
+                          ? 'Reporte #${widget.report.id}'
+                          : widget.report.titulo,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    // Descripción más compacta
+                    Text(
+                      widget.report.descripcion.trim().isEmpty
+                          ? 'Sin descripción'
+                          : widget.report.descripcion.trim(),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[300],
+                        height: 1.4,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (widget.imagenes != null &&
+                        widget.imagenes!.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      _ImageGallery(
+                        images: widget.imagenes!,
+                        onImageTap: (index) => _openImageViewer(
+                          context,
+                          widget.imagenes!,
+                          startIndex: index,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    // Footer compacto: ubicación, categoría, veracidad
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 6,
+                      children: [
+                        if (widget.report.categoria.isNotEmpty)
+                          _CompactInfo(
+                            icon: Icons.category_outlined,
+                            text: widget.report.categoria,
+                          ),
+                        if (widget.report.direccion.isNotEmpty)
+                          _CompactInfo(
+                            icon: Icons.place_outlined,
+                            text: widget.report.direccion,
+                            maxWidth: 200,
+                          ),
+                        _CompactInfo(
+                          icon: Icons.verified_outlined,
+                          text: 'Veracidad: $vTxt',
+                          color: v != null && v > 50
+                              ? Colors.green
+                              : Colors.orange,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Widget auxiliar para información compacta
+class _CompactInfo extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color? color;
+  final double? maxWidth;
+
+  const _CompactInfo({
+    required this.icon,
+    required this.text,
+    this.color,
+    this.maxWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color ?? Colors.grey[500]),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Container(
+            constraints: maxWidth != null
+                ? BoxConstraints(maxWidth: maxWidth!)
+                : null,
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12, color: color ?? Colors.grey[400]),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Widget para galería de imágenes mejorado
+class _ImageGallery extends StatefulWidget {
+  final List<String> images;
+  final Function(int) onImageTap;
+
+  const _ImageGallery({required this.images, required this.onImageTap});
+
+  @override
+  State<_ImageGallery> createState() => _ImageGalleryState();
+}
+
+class _ImageGalleryState extends State<_ImageGallery> {
+  int? _hoveredIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    // Contenedor de tamaño fijo estilo Reddit
+    // Siempre el mismo alto independiente de cuántas imágenes haya
+    return Container(
+      height: 320, // Altura fija como Reddit
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFF08192D),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: _buildImageContent(),
+      ),
+    );
+  }
+
+  Widget _buildImageContent() {
+    if (widget.images.length == 1) {
+      return _buildSingleImageFixed(widget.images[0], 0);
+    } else if (widget.images.length == 2) {
+      // Dos imágenes lado a lado en contenedor fijo
+      return Row(
+        children: [
+          Expanded(child: _buildSingleImageFixed(widget.images[0], 0)),
+          const SizedBox(width: 2),
+          Expanded(child: _buildSingleImageFixed(widget.images[1], 1)),
+        ],
+      );
+    } else {
+      // Múltiples imágenes con PageView (deslizamiento lateral)
+      return _buildPageView();
+    }
+  }
+
+  Widget _buildPageView() {
+    return Stack(
+      children: [
+        PageView.builder(
+          itemCount: widget.images.length,
+          onPageChanged: (index) {
+            setState(() => _hoveredIndex = index);
+          },
+          itemBuilder: (ctx, idx) {
+            return GestureDetector(
+              onTap: () => widget.onImageTap(idx),
+              child: _buildSingleImageFixed(widget.images[idx], idx),
+            );
+          },
+        ),
+        // Indicadores de página (dots)
+        if (widget.images.length > 1)
+          Positioned(
+            bottom: 8,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                widget.images.length,
+                (index) => Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: (_hoveredIndex ?? 0) == index
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.4),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // Contador en esquina
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.photo_library, size: 14, color: Colors.white),
+                const SizedBox(width: 5),
+                Text(
+                  '${(_hoveredIndex ?? 0) + 1}/${widget.images.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-            if (created != null) ...[
-              const SizedBox(height: Spacing.sm),
-              Text(
-                'Creado ${relativeTimeString(created)}',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Método simplificado para mostrar imagen en contenedor fijo estilo Reddit
+  Widget _buildSingleImageFixed(String url, int index) {
+    return GestureDetector(
+      onTap: () => widget.onImageTap(index),
+      child: Container(
+        color: const Color(0xFF08192D),
+        child: Image.network(
+          url,
+          fit: BoxFit
+              .contain, // La imagen se ajusta al contenedor manteniendo proporción
+          width: double.infinity,
+          height: double.infinity,
+          loadingBuilder: (ctx, child, progress) {
+            if (progress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: progress.expectedTotalBytes != null
+                    ? progress.cumulativeBytesLoaded /
+                          progress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
               ),
-            ],
-          ],
+            );
+          },
+          errorBuilder: (ctx, err, stack) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.broken_image, size: 48, color: Colors.grey[600]),
+                const SizedBox(height: 8),
+                Text(
+                  'Error al cargar imagen',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
