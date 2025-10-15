@@ -66,6 +66,11 @@ class ApiClient {
       map.putIfAbsent('status', () => res.statusCode);
       return map;
     }
+    if (res.data is List) {
+      // Si la API devuelve un array JSON, envuélvelo en 'data' para consumo homogéneo
+      final list = List<dynamic>.from(res.data as List);
+      return {'status': res.statusCode, 'data': list};
+    }
     final s = res.data.toString();
     if (s.isEmpty) return {'status': res.statusCode};
     try {

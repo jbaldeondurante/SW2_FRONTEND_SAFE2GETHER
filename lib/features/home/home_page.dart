@@ -43,6 +43,11 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Safe2Gether'),
+        leading: IconButton(
+          tooltip: 'Mi perfil',
+          icon: const Icon(Icons.person_outline),
+          onPressed: () => context.push('/profile'),
+        ),
         actions: [
           // 👇 Nuevo botón para ir al mapa de calor
           IconButton(

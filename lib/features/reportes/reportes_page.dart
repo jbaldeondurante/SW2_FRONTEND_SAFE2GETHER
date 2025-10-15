@@ -164,6 +164,11 @@ class _ReportesPageState extends State<ReportesPage> {
           child: Image.asset('assets/logo.png', fit: BoxFit.contain),
         ),
         centerTitle: true,
+        leading: IconButton(
+          tooltip: 'Mi perfil',
+          icon: const Icon(Icons.person_outline),
+          onPressed: () => context.push('/profile'),
+        ),
         actions: [
           IconButton(
             tooltip: 'Mapa de calor (Lima)',

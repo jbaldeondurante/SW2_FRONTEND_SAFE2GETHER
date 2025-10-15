@@ -15,6 +15,7 @@ import 'core/supabase_service.dart';
 import 'features/auth/auth_page.dart';
 import 'features/home/home_page.dart';
 import 'features/reportes/reportes_page.dart';
+import 'features/profile/profile_page.dart';
 import 'features/mapa/mapa_page.dart';
 import 'features/alertas/alertas_page.dart';
 import 'features/auth/password_reset_page.dart';
@@ -146,6 +147,11 @@ class _AppState extends State<App> {
           path: '/alertas',
           name: 'alertas',
           builder: (_, __) => AlertasPage(api: sl<ApiClient>()),
+        ),
+        GoRoute(
+          path: '/profile',
+          name: 'profile',
+          builder: (_, __) => ProfilePage(api: sl<ApiClient>()),
         ),
         GoRoute(path: '/', redirect: (_, __) => '/home'),
       ],
