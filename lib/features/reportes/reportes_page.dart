@@ -449,6 +449,7 @@ class _ReportCardState extends State<_ReportCard> {
   int? _reactionId; // id en tabla Reaccion
   String? _reactionTipo; // 'upvote' | 'downvote' | null
   double? _veracidad; // porcentaje (0-100)
+  String? _estado; // estado visible en la tarjeta
   // Comentarios
   bool _commentsOpen = false;
   bool _loadingComments = false;
@@ -464,7 +465,8 @@ class _ReportCardState extends State<_ReportCard> {
     _downvotes = widget.report.downvotes;
     _reactionId = widget.userReaction?.id;
     _reactionTipo = widget.userReaction?.tipo;
-    _veracidad = widget.report.veracidad;
+  _veracidad = widget.report.veracidad;
+  _estado = widget.report.estado;
   }
 
   @override
@@ -601,13 +603,18 @@ class _ReportCardState extends State<_ReportCard> {
       if (pr.statusCode != 200) {
         throw Exception('PATCH reporte HTTP ${pr.statusCode}');
       }
-      // actualizar veracidad local desde respuesta o calcular fallback
+      // actualizar veracidad/estado local desde respuesta o calcular fallback
       try {
         final body = jsonDecode(pr.body);
         double? vSrv;
+        String? estadoSrv;
         if (body is Map<String, dynamic>) {
           final num? vNum = body['veracidad_porcentaje'] as num?;
           vSrv = vNum?.toDouble();
+          final es = body['estado'];
+          if (es is String && es.isNotEmpty) {
+            estadoSrv = es;
+          }
         }
         setState(() {
           if (vSrv != null) {
@@ -616,11 +623,23 @@ class _ReportCardState extends State<_ReportCard> {
             final total = _upvotes + _downvotes;
             _veracidad = total > 0 ? (_upvotes / total) * 100.0 : 0.0;
           }
+          if (estadoSrv != null) {
+            _estado = estadoSrv;
+          } else {
+            final v = _veracidad;
+            if (v != null) {
+              _estado = v < 33.0 ? 'Falso' : 'Activo';
+            }
+          }
         });
       } catch (_) {
         setState(() {
           final total = _upvotes + _downvotes;
           _veracidad = total > 0 ? (_upvotes / total) * 100.0 : 0.0;
+          final v = _veracidad;
+          if (v != null) {
+            _estado = v < 33.0 ? 'Falso' : 'Activo';
+          }
         });
       }
     } catch (e) {
@@ -755,12 +774,19 @@ class _ReportCardState extends State<_ReportCard> {
                           color: Colors.grey[500],
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          widget.userName,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[400],
-                            fontWeight: FontWeight.w500,
+                        InkWell(
+                          onTap: () {
+                            context.push('/profile/${widget.report.userId}');
+                          },
+                          child: Text(
+                            widget.userName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.lightBlue[200],
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.lightBlue[200],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -781,20 +807,20 @@ class _ReportCardState extends State<_ReportCard> {
                           ),
                           decoration: BoxDecoration(
                             color: _estadoColor(
-                              widget.report.estado,
+                              (_estado ?? widget.report.estado),
                             ).withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: _estadoColor(
-                                widget.report.estado,
+                                (_estado ?? widget.report.estado),
                               ).withOpacity(0.5),
                             ),
                           ),
                           child: Text(
-                            widget.report.estado,
+                            (_estado ?? widget.report.estado),
                             style: TextStyle(
                               fontSize: 10,
-                              color: _estadoColor(widget.report.estado),
+                              color: _estadoColor((_estado ?? widget.report.estado)),
                               fontWeight: FontWeight.bold,
                             ),
                           ),

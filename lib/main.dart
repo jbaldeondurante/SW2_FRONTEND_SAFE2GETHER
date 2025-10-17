@@ -109,7 +109,7 @@ class _AppState extends State<App> {
     _authNotifier = SupabaseAuthNotifier();
 
     _router = GoRouter(
-      initialLocation: '/home',
+      initialLocation: '/login',
       refreshListenable: _authNotifier,
       routes: [
         GoRoute(
@@ -152,6 +152,16 @@ class _AppState extends State<App> {
           path: '/profile',
           name: 'profile',
           builder: (_, __) => ProfilePage(api: sl<ApiClient>()),
+        ),
+        // Ver perfil de otro usuario por id
+        GoRoute(
+          path: '/profile/:id',
+          name: 'profile-by-id',
+          builder: (_, state) {
+            final idStr = state.pathParameters['id'];
+            final id = int.tryParse(idStr ?? '');
+            return ProfilePage(api: sl<ApiClient>(), userId: id);
+          },
         ),
         GoRoute(path: '/', redirect: (_, __) => '/home'),
       ],

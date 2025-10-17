@@ -7,7 +7,8 @@ import '../../core/supabase_service.dart';
 
 class ProfilePage extends StatefulWidget {
   final ApiClient api;
-  const ProfilePage({super.key, required this.api});
+  final int? userId; // si null, usa usuario en sesión
+  const ProfilePage({super.key, required this.api, this.userId});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -24,10 +25,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<_ProfileData> _load() async {
     final svc = GetIt.instance<SupabaseService>();
-    final id = svc.backendUserId;
-    final username = svc.backendUsername ?? 'Usuario';
+    final id = widget.userId ?? svc.backendUserId;
+    String username = svc.backendUsername ?? 'Usuario';
     if (id == null) {
       throw Exception('No hay usuario del backend en sesión.');
+    }
+    // Si estamos viendo otro usuario, intenta obtener su nombre
+    if (widget.userId != null && widget.userId != svc.backendUserId) {
+      try {
+        final res = await widget.api.getJson('/users/$id');
+        if ((res['status'] as int? ?? 200) < 400) {
+          final data = res['data'] ?? res;
+          if (data is Map && data['user'] != null) {
+            username = data['user'].toString();
+          }
+        }
+      } catch (_) {}
     }
     final r = await widget.api.getJson('/Reportes/user/$id');
     final status = r['status'] as int? ?? 200;
@@ -66,7 +79,7 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF08192D),
         foregroundColor: Colors.white,
-        title: const Text('Mi perfil'),
+  title: const Text('Perfil'),
         centerTitle: true,
       ),
       body: FutureBuilder<_ProfileData>(
@@ -104,7 +117,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 12),
                 if (data.reports.isEmpty)
-                  const _Empty()
+                  _Empty(isSelf: GetIt.instance<SupabaseService>().backendUserId == data.userId)
                 else
                   ...data.reports.map(
                     (r) => Center(
@@ -234,18 +247,19 @@ class _ReportTile extends StatelessWidget {
 }
 
 class _Empty extends StatelessWidget {
-  const _Empty();
+  final bool isSelf;
+  const _Empty({this.isSelf = true});
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 80),
       child: Column(
-        children: const [
-          Icon(Icons.inbox_outlined, color: Colors.white70, size: 48),
-          SizedBox(height: 8),
+        children: [
+          const Icon(Icons.inbox_outlined, color: Colors.white70, size: 48),
+          const SizedBox(height: 8),
           Text(
-            'No has creado reportes aún',
-            style: TextStyle(color: Colors.white70),
+            isSelf ? 'No has creado reportes aún' : 'Este usuario no tiene reportes',
+            style: const TextStyle(color: Colors.white70),
           ),
         ],
       ),
