@@ -14,6 +14,7 @@ import 'core/supabase_service.dart';
 
 import 'features/auth/auth_page.dart';
 import 'features/home/home_page.dart';
+import 'features/home/comparacion_distritos_page.dart';
 import 'features/reportes/reportes_page.dart';
 import 'features/profile/profile_page.dart';
 import 'features/mapa/mapa_page.dart';
@@ -162,6 +163,11 @@ class _AppState extends State<App> {
             final id = int.tryParse(idStr ?? '');
             return ProfilePage(api: sl<ApiClient>(), userId: id);
           },
+        ),
+        GoRoute(
+          path: '/comparacion-distritos',
+          name: 'comparacion-distritos',
+          builder: (_, __) => const ComparacionDistritosPage(),
         ),
         GoRoute(path: '/', redirect: (_, __) => '/home'),
       ],

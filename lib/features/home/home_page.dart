@@ -111,6 +111,11 @@ class _HomePageState extends State<HomePage> {
                     icon: const Icon(Icons.notification_important),
                     label: const Text('Alertas'),
                   ),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/comparacion-distritos'),
+                    icon: const Icon(Icons.analytics),
+                    label: const Text('Comparar Distritos'),
+                  ),
                 ],
               ),
             ],
