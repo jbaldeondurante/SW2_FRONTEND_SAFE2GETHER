@@ -182,11 +182,13 @@ class ApiClient {
   }
 
   // --- Ranking distritos ---
-  Future<List<dynamic>> getDistrictRanking({String period = 'week'}) async {
+  Future<List<dynamic>> getDistrictRanking({String period = 'week', List<String>? categorias}) async {
     try {
-      final res = await getJson('/Reportes/ranking/distritos', query: {
-        'period': period,
-      });
+      final query = {'period': period};
+      if (categorias != null && categorias.isNotEmpty) {
+        query['categorias'] = categorias.join(',');
+      }
+      final res = await getJson('/Reportes/ranking/distritos', query: query);
       final code = res['status'] as int?;
       if (code != null && code >= 400) {
         throw Exception('Error HTTP $code al obtener ranking');

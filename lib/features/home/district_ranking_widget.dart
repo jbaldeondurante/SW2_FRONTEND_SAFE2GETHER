@@ -14,6 +14,8 @@ class _DistrictRankingWidgetState extends State<DistrictRankingWidget> {
   bool _loading = true;
   List<dynamic> _rows = [];
   String? _error;
+  Set<String> _categoriasFiltro = {};
+  Set<String> _todasCategorias = {};
 
   @override
   void initState() {
@@ -24,8 +26,26 @@ class _DistrictRankingWidgetState extends State<DistrictRankingWidget> {
   Future<void> _fetch() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final data = await _api.getDistrictRanking(period: _period);
-      setState(() { _rows = data; });
+      final data = await _api.getDistrictRanking(
+        period: _period, 
+        categorias: _categoriasFiltro.isEmpty ? null : _categoriasFiltro.toList(),
+      );
+      
+      // Extraer categorías únicas de los datos
+      final categorias = <String>{};
+      for (final row in data) {
+        if (row is Map<String, dynamic>) {
+          final porCategoria = row['por_categoria'] as Map<String, dynamic>?;
+          if (porCategoria != null) {
+            categorias.addAll(porCategoria.keys.cast<String>());
+          }
+        }
+      }
+      
+      setState(() { 
+        _rows = data; 
+        _todasCategorias = categorias;
+      });
     } catch (e) {
       setState(() { _error = e.toString(); });
     } finally {
@@ -118,7 +138,58 @@ class _DistrictRankingWidgetState extends State<DistrictRankingWidget> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            // Filtro de categorías (selección múltiple)
+            if (_todasCategorias.isNotEmpty) ...[
+              Row(
+                children: [
+                  const Text(
+                    'Filtrar por tipo de delito:',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF3A5A6E)),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_categoriasFiltro.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() => _categoriasFiltro.clear());
+                        _fetch();
+                      },
+                      icon: const Icon(Icons.clear, size: 16),
+                      label: const Text('Limpiar', style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF4A7C9E),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _todasCategorias.map((cat) => FilterChip(
+                  label: Text(cat),
+                  selected: _categoriasFiltro.contains(cat),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _categoriasFiltro.add(cat);
+                      } else {
+                        _categoriasFiltro.remove(cat);
+                      }
+                    });
+                    _fetch();
+                  },
+                  selectedColor: const Color(0xFF4A7C9E),
+                  checkmarkColor: Colors.white,
+                  labelStyle: TextStyle(
+                    color: _categoriasFiltro.contains(cat) ? Colors.white : const Color(0xFF3A5A6E),
+                    fontSize: 12,
+                  ),
+                )).toList(),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (_loading)
               Container(
                 padding: const EdgeInsets.all(32.0),
