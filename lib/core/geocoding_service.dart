@@ -1,4 +1,3 @@
-// lib/core/geocoding_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
@@ -6,7 +5,6 @@ import 'package:geolocator/geolocator.dart';
 import 'env.dart';
 
 class GeocodingService {
-  /// 🗺️ Coordenadas por dirección (Google Geocoding)
   Future<LocationResult?> getCoordinatesFromAddress(String address) async {
     final clean = address.trim();
     if (clean.isEmpty) return null;
@@ -56,7 +54,6 @@ class GeocodingService {
     }
   }
 
-  /// 📍 Ubicación actual (Geolocator)
   Future<LocationResult?> getCurrentLocation() async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
@@ -84,13 +81,11 @@ class GeocodingService {
     }
   }
 
-  /// 🔍 Sugerencias de direcciones (Google Places Autocomplete)
   Future<List<String>> searchAddresses(String query) async {
     final q = query.trim();
     if (q.length < 3) return [];
 
     try {
-      // Llamamos a TU backend (usa Env.apiBaseUrl que ya tienes)
       final url = Uri.parse(
         '${Env.apiBaseUrl}/places/autocomplete?q=${Uri.encodeComponent(q)}',
       );

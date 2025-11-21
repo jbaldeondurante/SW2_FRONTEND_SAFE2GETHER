@@ -1,13 +1,10 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:typed_data';
 
 class SupabaseService {
-  /// Sube una imagen al bucket 'adjuntos' y retorna la URL pública
   Future<String?> uploadImage(File imageFile) async {
     try {
       final supabase = Supabase.instance.client;
@@ -16,8 +13,7 @@ class SupabaseService {
       final response = await supabase.storage
           .from('adjuntos')
           .upload(fileName, imageFile);
-      // Si la subida fue exitosa, response es la ruta del archivo
-      if (response is String && response.isNotEmpty) {
+      if (response.isNotEmpty) {
         final publicUrl = supabase.storage
             .from('adjuntos')
             .getPublicUrl(fileName);
@@ -32,23 +28,20 @@ class SupabaseService {
     }
   }
 
-  /// Sube una imagen a Supabase Storage y retorna la URL pública
   Future<String?> uploadImageWeb() async {
     try {
-      // Selecciona archivo desde el navegador
       final result = await FilePicker.platform.pickFiles(type: FileType.image);
       if (result == null || result.files.isEmpty) return null;
       final file = result.files.first;
       final bytes = file.bytes;
       if (bytes == null) return null;
       final supabase = Supabase.instance.client;
-      // Genera nombre seguro para el archivo
       final safeName = file.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_$safeName';
       final response = await supabase.storage
           .from('adjuntos')
           .uploadBinary(fileName, bytes);
-      if (response is String && response.isNotEmpty) {
+      if (response.isNotEmpty) {
         final publicUrl = supabase.storage
             .from('adjuntos')
             .getPublicUrl(fileName);
@@ -68,16 +61,13 @@ class SupabaseService {
   int? _backendUserId;
   String? _backendUsername;
   String? _backendAccessToken;
-  // Notifier para que la UI / router pueda reaccionar a cambios del login del backend.
   final ValueNotifier<bool> backendLoginNotifier = ValueNotifier(false);
-  // Señal para indicar que la restauración inicial terminó
   late final Future<void> ready;
 
   SupabaseService(this._client) {
     ready = _restoreBackendLogin();
   }
 
-  /// Marca que el usuario inició sesión correctamente en el backend propio.
   bool get backendLoggedIn => _backendLoggedIn;
   set backendLoggedIn(bool v) {
     _backendLoggedIn = v;
@@ -159,8 +149,6 @@ class SupabaseService {
     } catch (_) {}
   }
 
-  /// Envía correo de verificación. Si Supabase tiene "Confirm email" activado,
-  /// no podrás iniciar sesión hasta confirmar.
   Future<void> signUpWithEmail(
     String email,
     String password, {
@@ -176,8 +164,6 @@ class SupabaseService {
     }
   }
 
-  /// Inicia sesión con email + password.
-  /// Si [requireConfirmed] es true, exige que el correo esté verificado.
   Future<void> signInWithEmail(
     String email,
     String password, {
@@ -202,7 +188,7 @@ class SupabaseService {
 
   Future<void> signOut() async {
     await _client.auth.signOut();
-    backendLoggedIn = false; // will persist and notify
+    backendLoggedIn = false;
     backendUserId = null;
     backendUsername = null;
     backendAccessToken = null;

@@ -39,6 +39,10 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 settings.env
+
+# Web - Ignore index.html (contains API keys)
+web/index.html
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Escala de espaciado consistente en toda la app
 class Spacing {
   static const xxs = 4.0;
   static const xs = 6.0;
@@ -11,14 +10,12 @@ class Spacing {
   static const xxl = 24.0;
 }
 
-/// Radios y sombras estándar
 class R {
   static BorderRadius br8 = BorderRadius.circular(8);
   static BorderRadius br12 = BorderRadius.circular(12);
   static BorderRadius br16 = BorderRadius.circular(16);
 }
 
-/// Ayudita para formatear fechas de manera simple (sin paquetes extra)
 String relativeTimeString(DateTime when, {DateTime? now}) {
   final n = now ?? DateTime.now();
   final diff = n.difference(when);
@@ -28,13 +25,11 @@ String relativeTimeString(DateTime when, {DateTime? now}) {
   if (diff.inDays == 1) return 'ayer';
   if (diff.inDays < 7) return 'hace ${diff.inDays}d';
 
-  // Fallback compacto dd/MM/yyyy HH:mm
   final d = when.toLocal();
   final two = (int v) => v.toString().padLeft(2, '0');
   return '${two(d.day)}/${two(d.month)}/${d.year} ${two(d.hour)}:${two(d.minute)}';
 }
 
-/// Pequeña chip para metadatos
 class MetaChip extends StatelessWidget {
   final IconData icon;
   final String label;

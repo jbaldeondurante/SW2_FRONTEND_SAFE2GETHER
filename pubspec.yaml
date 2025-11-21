@@ -48,7 +48,6 @@ dependencies:
   geocoding: ^2.1.1                 # Para convertir dirección a coordenadas
   flutter_typeahead: ^5.0.1         # Para autocompletado de direcciones
   file_picker: ^10.3.3
-  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:
@@ -81,7 +80,6 @@ flutter:
     #logo
     - assets/SS.png
     - assets/logo.png
-    - assets/geo/lima_distritos.geojson
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -1,4 +1,3 @@
-//sw2-frontend-safe2gether/lib/features/home/home_page.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
@@ -33,10 +32,6 @@ class _HomePageState extends State<HomePage> {
     if (mounted) context.go('/login');
   }
 
-  void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
@@ -54,11 +49,6 @@ class _HomePageState extends State<HomePage> {
             tooltip: 'Mapa de calor (Lima)',
             icon: const Icon(Icons.map_outlined),
             onPressed: () => context.push('/mapa'),
-          ),
-          IconButton(
-            tooltip: 'Ranking distritos',
-            icon: const Icon(Icons.security),
-            onPressed: () => context.push('/ranking-distritos'),
           ),
           IconButton(
             tooltip: 'Cerrar sesión',

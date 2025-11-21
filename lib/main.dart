@@ -24,30 +24,20 @@ import 'features/auth/password_reset_page.dart';
 
 final sl = GetIt.instance;
 
-/// Carga variables de entorno, inicializa servicios y Supabase.
 Future<void> _setup() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1) Cargar .env (prioriza web vs android; fallback a settings.env)
   try {
     await dotenv.load(
       fileName: kIsWeb ? 'settings.env' : 'settings.android.env',
     );
   } catch (_) {
-    // Fallback si no existe el específico
     await dotenv.load(fileName: 'settings.env');
   }
 
-  // (Opcional) Si tu Env tiene validaciones/prints, descomenta:
-  // Env.validate();
-  // Env.printConfig();
-
-  // 2) Inicializar Supabase
   await Supabase.initialize(url: Env.supabaseUrl, anonKey: Env.supabaseAnonKey);
 
-  // 3) Registrar dependencias
   if (!sl.isRegistered<ApiClient>()) {
-    // Si tu ApiClient acepta baseUrl desde Env, cámbialo a: ApiClient(baseUrl: Env.apiBaseUrl)
     sl.registerLazySingleton<ApiClient>(() => ApiClient());
   }
   if (!sl.isRegistered<SupabaseService>()) {
@@ -57,7 +47,6 @@ Future<void> _setup() async {
   }
 }
 
-/// Notificador para que GoRouter reaccione a cambios de sesión
 class SupabaseAuthNotifier extends ChangeNotifier {
   late final StreamSubscription _sub;
   VoidCallback? _backendListener;
@@ -66,7 +55,6 @@ class SupabaseAuthNotifier extends ChangeNotifier {
     _sub = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
       notifyListeners();
     });
-    // Escucha cambios en el login del backend para refrescar el router
     if (sl.isRegistered<SupabaseService>()) {
       final svc = sl<SupabaseService>();
       _backendListener = () => notifyListeners();
@@ -88,7 +76,6 @@ class SupabaseAuthNotifier extends ChangeNotifier {
 
 void main() async {
   await _setup();
-  // Espera a que SupabaseService restaure el estado de login del backend
   try {
     await sl<SupabaseService>().ready;
   } catch (_) {}
@@ -120,7 +107,6 @@ class _AppState extends State<App> {
           builder: (_, __) =>
               AuthPage(auth: sl<SupabaseService>(), api: sl<ApiClient>()),
         ),
-        // 🆕 MOVER PASSWORD-RESET ANTES DE LAS RUTAS PROTEGIDAS
         GoRoute(
           path: '/password-reset',
           name: 'password-reset',
@@ -155,7 +141,6 @@ class _AppState extends State<App> {
           name: 'profile',
           builder: (_, __) => ProfilePage(api: sl<ApiClient>()),
         ),
-        // Ver perfil de otro usuario por id
         GoRoute(
           path: '/profile/:id',
           name: 'profile-by-id',
@@ -182,15 +167,10 @@ class _AppState extends State<App> {
         final backendOk = sl<SupabaseService>().backendLoggedIn;
         final loggingIn = state.matchedLocation == '/login';
         final resettingPassword =
-            state.matchedLocation == '/password-reset'; // 🆕
+            state.matchedLocation == '/password-reset';
 
-        // 🆕 Permitir acceso a password-reset sin autenticación
         if (resettingPassword) return null;
-
-        // Si no hay sesión Supabase y backend no ha confirmado, fuerza /login
         if (user == null && !loggingIn && !backendOk) return '/login';
-
-        // Si ya hay sesión (o backend OK) y estás en /login, redirige a /home
         if ((user != null || backendOk) && loggingIn) return '/home';
 
         return null;

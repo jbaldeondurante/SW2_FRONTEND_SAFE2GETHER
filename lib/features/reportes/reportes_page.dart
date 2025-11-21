@@ -9,7 +9,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/supabase_service.dart';
 import 'reportes_create.dart';
 import '../../core/ui.dart';
-// Removed unused imports: go_router, env
 
 class ReportesPage extends StatefulWidget {
   final ApiClient api;
@@ -32,8 +31,7 @@ class _ReportesPageState extends State<ReportesPage> {
 
   Future<_PageData> _fetchAll() async {
     final currentUserId = GetIt.instance<SupabaseService>().backendUserId;
-  // Pide 50 últimos reportes por defecto
-  final r = await http.get(Uri.parse('$_base/Reportes?limit=50&offset=0&order=created_at.desc'));
+    final r = await http.get(Uri.parse('$_base/Reportes?limit=50&offset=0&order=created_at.desc'));
     if (r.statusCode != 200) {
       throw Exception('HTTP ${r.statusCode} al obtener Reportes');
     }
@@ -41,17 +39,15 @@ class _ReportesPageState extends State<ReportesPage> {
     final reports = raw
         .map((e) => Report.fromJson(e as Map<String, dynamic>))
         .toList();
-    // Ordenar del más reciente al más antiguo
     reports.sort((a, b) {
       final ta = a.createdAt;
       final tb = b.createdAt;
-      if (tb != null && ta != null) return tb.compareTo(ta); // desc
-      if (tb != null) return 1; // a sin fecha va después
-      if (ta != null) return -1; // b sin fecha va después
-      return b.id.compareTo(a.id); // fallback por id desc
+      if (tb != null && ta != null) return tb.compareTo(ta);
+      if (tb != null) return 1;
+      if (ta != null) return -1;
+      return b.id.compareTo(a.id);
     });
 
-    // Traer nombres de usuario en bloque
     final ids = reports.map((e) => e.userId).toSet().toList();
     final names = <int, String>{};
     if (ids.isNotEmpty) {
@@ -71,7 +67,6 @@ class _ReportesPageState extends State<ReportesPage> {
           bulkOk = true;
         }
       } catch (_) {}
-      // Fallback per-id si bulk falló o quedó vacío
       if (!bulkOk || names.length < ids.length) {
         final missing = ids.where((id) => !names.containsKey(id));
         await Future.wait(
@@ -94,8 +89,6 @@ class _ReportesPageState extends State<ReportesPage> {
       }
     }
 
-    // Traer adjuntos (imagenes) y cruzar por reporte_id
-    // Traer adjuntos solo de estos reportes (bulk)
     final imagenesPorReporte = <int, List<String>>{};
     if (reports.isNotEmpty) {
       bool bulkOk = false;
@@ -126,7 +119,6 @@ class _ReportesPageState extends State<ReportesPage> {
           bulkOk = true;
         }
       } catch (_) {}
-      // Fallback per-report si bulk falló: pegar a /Adjunto/reporte/{id}
       if (!bulkOk) {
         await Future.wait(
           reports.map((rep) async {
