@@ -216,6 +216,11 @@ class _ReportesPageState extends State<ReportesPage> {
             onPressed: () => context.push('/mapa'),
           ),
           IconButton(
+            tooltip: 'Ranking distritos seguros',
+            icon: const Icon(Icons.security),
+            onPressed: () => context.push('/ranking-distritos'),
+          ),
+          IconButton(
             tooltip: 'Nuevo reporte',
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () async {

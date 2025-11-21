@@ -56,6 +56,11 @@ class _HomePageState extends State<HomePage> {
             onPressed: () => context.push('/mapa'),
           ),
           IconButton(
+            tooltip: 'Ranking distritos',
+            icon: const Icon(Icons.security),
+            onPressed: () => context.push('/ranking-distritos'),
+          ),
+          IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
             onPressed: _logout,
@@ -115,6 +120,11 @@ class _HomePageState extends State<HomePage> {
                     onPressed: () => context.push('/comparacion-distritos'),
                     icon: const Icon(Icons.analytics),
                     label: const Text('Comparar Distritos'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/ranking-distritos'),
+                    icon: const Icon(Icons.security),
+                    label: const Text('Ranking Distritos'),
                   ),
                 ],
               ),

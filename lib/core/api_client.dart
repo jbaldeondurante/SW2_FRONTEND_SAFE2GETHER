@@ -180,4 +180,28 @@ class ApiClient {
     }
     return r;
   }
+
+  // --- Ranking distritos ---
+  Future<List<dynamic>> getDistrictRanking({String period = 'week'}) async {
+    try {
+      final res = await getJson('/Reportes/ranking/distritos', query: {
+        'period': period,
+      });
+      final code = res['status'] as int?;
+      if (code != null && code >= 400) {
+        throw Exception('Error HTTP $code al obtener ranking');
+      }
+      final data = res['data'];
+      if (data is List) return data;
+      return [];
+    } catch (e) {
+      // Relanzar con mensaje más claro
+      if (e.toString().contains('XMLHttpRequest') || 
+          e.toString().contains('Network') ||
+          e.toString().contains('CORS')) {
+        throw Exception('No se pudo conectar con el servidor. Verifica que el backend esté corriendo.');
+      }
+      rethrow;
+    }
+  }
 }
