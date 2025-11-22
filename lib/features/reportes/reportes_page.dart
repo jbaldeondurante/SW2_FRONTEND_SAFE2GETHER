@@ -18,20 +18,45 @@ class ReportesPage extends StatefulWidget {
   State<ReportesPage> createState() => _ReportesPageState();
 }
 
-class _ReportesPageState extends State<ReportesPage> {
+class _ReportesPageState extends State<ReportesPage> with SingleTickerProviderStateMixin {
   late final String _base;
   late Future<_PageData> _future;
+  late TabController _tabController;
+  int _currentTab = 0;
 
   @override
   void initState() {
     super.initState();
     _base = Env.apiBaseUrl;
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        setState(() {
+          _currentTab = _tabController.index;
+          _future = _fetchAll();
+        });
+      }
+    });
     _future = _fetchAll();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<_PageData> _fetchAll() async {
     final currentUserId = GetIt.instance<SupabaseService>().backendUserId;
-    final r = await http.get(Uri.parse('$_base/Reportes?limit=50&offset=0&order=created_at.desc'));
+    
+    // Tab 0 = Para ti (todos), Tab 1 = Siguiendo (solo seguidos)
+    http.Response r;
+    if (_currentTab == 1 && currentUserId != null) {
+      r = await http.get(Uri.parse('$_base/Reportes/seguidos/$currentUserId'));
+    } else {
+      r = await http.get(Uri.parse('$_base/Reportes?limit=50&offset=0&order=created_at.desc'));
+    }
+    
     if (r.statusCode != 200) {
       throw Exception('HTTP ${r.statusCode} al obtener Reportes');
     }
@@ -191,57 +216,83 @@ class _ReportesPageState extends State<ReportesPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF08192D),
         foregroundColor: Colors.white,
-        title: SizedBox(
-          height: 36,
-          child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+        toolbarHeight: 56,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Mapa de calor (Lima)',
+                  icon: const Icon(Icons.map_outlined),
+                  onPressed: () => context.push('/mapa'),
+                ),
+                IconButton(
+                  tooltip: 'Ranking distritos seguros',
+                  icon: const Icon(Icons.security),
+                  onPressed: () => context.push('/ranking-distritos'),
+                ),
+                IconButton(
+                  tooltip: 'Nuevo reporte',
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: () async {
+                    final result = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) {
+                        return AlertDialog(
+                          backgroundColor: Colors.white,
+                          contentPadding: const EdgeInsets.all(16),
+                          content: SizedBox(width: 420, child: ReportesCreateForm()),
+                        );
+                      },
+                    );
+                    if (result == true) {
+                      _refresh();
+                    }
+                  },
+                ),
+              ],
+            ),
+            SizedBox(
+              height: 36,
+              child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Mi perfil',
+                  icon: const Icon(Icons.person_outline),
+                  onPressed: () => context.push('/profile'),
+                ),
+                IconButton(
+                  tooltip: 'Cerrar sesión',
+                  icon: const Icon(Icons.logout),
+                  onPressed: () async {
+                    try {
+                      await GetIt.instance<SupabaseService>().signOut();
+                      if (context.mounted) context.go('/login');
+                    } catch (_) {}
+                  },
+                ),
+              ],
+            ),
+          ],
         ),
-        centerTitle: true,
-        leading: IconButton(
-          tooltip: 'Mi perfil',
-          icon: const Icon(Icons.person_outline),
-          onPressed: () => context.push('/profile'),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: const Color(0xFF1E88E5),
+          indicatorWeight: 3,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white60,
+          labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          unselectedLabelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.normal),
+          tabs: const [
+            Tab(text: 'Para ti'),
+            Tab(text: 'Siguiendo'),
+          ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Mapa de calor (Lima)',
-            icon: const Icon(Icons.map_outlined),
-            onPressed: () => context.push('/mapa'),
-          ),
-          IconButton(
-            tooltip: 'Ranking distritos seguros',
-            icon: const Icon(Icons.security),
-            onPressed: () => context.push('/ranking-distritos'),
-          ),
-          IconButton(
-            tooltip: 'Nuevo reporte',
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () async {
-              final result = await showDialog<bool>(
-                context: context,
-                builder: (ctx) {
-                  return AlertDialog(
-                    backgroundColor: Colors.white,
-                    contentPadding: const EdgeInsets.all(16),
-                    content: SizedBox(width: 420, child: ReportesCreateForm()),
-                  );
-                },
-              );
-              if (result == true) {
-                _refresh();
-              }
-            },
-          ),
-          IconButton(
-            tooltip: 'Cerrar sesión',
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              try {
-                await GetIt.instance<SupabaseService>().signOut();
-                if (context.mounted) context.go('/login');
-              } catch (_) {}
-            },
-          ),
-        ],
       ),
       body: FutureBuilder<_PageData>(
         future: _future,

@@ -206,4 +206,84 @@ class ApiClient {
       rethrow;
     }
   }
+
+  // --- Seguidores ---
+  Future<Map<String, dynamic>> followUser({
+    required int seguidorId,
+    required int seguidoId,
+  }) async {
+    final r = await postJson('/Seguidores', {
+      'seguidor_id': seguidorId,
+      'seguido_id': seguidoId,
+    });
+    final code = r['status'] as int?;
+    if (code != null && code >= 400) {
+      throw Exception('Error al seguir usuario: ${jsonEncode(r)}');
+    }
+    return r;
+  }
+
+  Future<Map<String, dynamic>> unfollowUser({
+    required int seguidorId,
+    required int seguidoId,
+  }) async {
+    try {
+      final res = await _dio
+          .delete('/Seguidores/unfollow/$seguidorId/$seguidoId')
+          .timeout(const Duration(seconds: 12));
+      final result = _asMap(res);
+      final code = result['status'] as int?;
+      if (code != null && code >= 400) {
+        throw Exception('Error al dejar de seguir: ${jsonEncode(result)}');
+      }
+      return result;
+    } on DioException catch (e) {
+      throw Exception(_prettyDioError(e));
+    }
+  }
+
+  Future<bool> isFollowing({
+    required int seguidorId,
+    required int seguidoId,
+  }) async {
+    final r = await getJson('/Seguidores/is-following/$seguidorId/$seguidoId');
+    final code = r['status'] as int?;
+    if (code != null && code >= 400) {
+      throw Exception('Error al verificar seguimiento: ${jsonEncode(r)}');
+    }
+    return r['is_following'] == true;
+  }
+
+  Future<List<dynamic>> getFollowers(int userId) async {
+    final r = await getJson('/Seguidores/seguidores/$userId');
+    final code = r['status'] as int?;
+    if (code != null && code >= 400) {
+      throw Exception('Error al obtener seguidores: ${jsonEncode(r)}');
+    }
+    final data = r['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  Future<List<dynamic>> getFollowing(int userId) async {
+    final r = await getJson('/Seguidores/seguidos/$userId');
+    final code = r['status'] as int?;
+    if (code != null && code >= 400) {
+      throw Exception('Error al obtener seguidos: ${jsonEncode(r)}');
+    }
+    final data = r['data'];
+    if (data is List) return data;
+    return [];
+  }
+
+  Future<List<dynamic>> getReportesFromFollowedUsers(int userId) async {
+    final r = await getJson('/Reportes/seguidos/$userId');
+    final code = r['status'] as int?;
+    if (code != null && code >= 400) {
+      throw Exception('Error al obtener reportes de seguidos: ${jsonEncode(r)}');
+    }
+    final data = r['data'];
+    if (data is List) return data;
+    return [];
+  }
 }

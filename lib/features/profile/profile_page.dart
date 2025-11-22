@@ -116,6 +116,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: _FollowStats(
+                      username: data.username,
+                      userId: data.userId,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 if (data.reports.isEmpty)
                   _Empty(isSelf: GetIt.instance<SupabaseService>().backendUserId == data.userId)
                 else
@@ -136,39 +146,295 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends StatefulWidget {
   final String username;
   final int userId;
   const _Header({required this.username, required this.userId});
 
   @override
+  State<_Header> createState() => _HeaderState();
+}
+
+class _HeaderState extends State<_Header> {
+  bool _isFollowing = false;
+  bool _loading = true;
+  bool _actionLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFollowingStatus();
+  }
+
+  Future<void> _checkFollowingStatus() async {
+    final svc = GetIt.instance<SupabaseService>();
+    final currentUserId = svc.backendUserId;
+    
+    // Si es el propio perfil, no mostramos botón de seguir
+    if (currentUserId == null || currentUserId == widget.userId) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    try {
+      final api = GetIt.instance<ApiClient>();
+      final isFollowing = await api.isFollowing(
+        seguidorId: currentUserId,
+        seguidoId: widget.userId,
+      );
+      if (mounted) {
+        setState(() {
+          _isFollowing = isFollowing;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    final svc = GetIt.instance<SupabaseService>();
+    final currentUserId = svc.backendUserId;
+    
+    if (currentUserId == null) return;
+
+    setState(() => _actionLoading = true);
+
+    try {
+      final api = GetIt.instance<ApiClient>();
+      
+      if (_isFollowing) {
+        await api.unfollowUser(
+          seguidorId: currentUserId,
+          seguidoId: widget.userId,
+        );
+        if (mounted) {
+          setState(() => _isFollowing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Has dejado de seguir a este usuario')),
+          );
+        }
+      } else {
+        await api.followUser(
+          seguidorId: currentUserId,
+          seguidoId: widget.userId,
+        );
+        if (mounted) {
+          setState(() => _isFollowing = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ahora sigues a este usuario')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _actionLoading = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final svc = GetIt.instance<SupabaseService>();
+    final currentUserId = svc.backendUserId;
+    final isSelf = currentUserId == widget.userId;
+
     return Card(
       color: const Color(0xFF0C2542),
+      elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CircleAvatar(radius: 26, child: Icon(Icons.person, size: 28)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    username,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 36,
+                  backgroundColor: const Color(0xFF1E88E5),
+                  child: Text(
+                    widget.username.isNotEmpty ? widget.username[0].toUpperCase() : 'U',
                     style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'ID: $userId',
-                    style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.username,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '@user${widget.userId}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+                if (!isSelf && !_loading)
+                  _actionLoading
+                      ? const SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : ElevatedButton(
+                          onPressed: _toggleFollow,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isFollowing ? Colors.transparent : const Color(0xFF1E88E5),
+                            foregroundColor: Colors.white,
+                            side: _isFollowing ? const BorderSide(color: Colors.white54) : null,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: Text(
+                            _isFollowing ? 'Siguiendo' : 'Seguir',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FollowStats extends StatefulWidget {
+  final String username;
+  final int userId;
+  const _FollowStats({required this.username, required this.userId});
+
+  @override
+  State<_FollowStats> createState() => _FollowStatsState();
+}
+
+class _FollowStatsState extends State<_FollowStats> {
+  int _followersCount = 0;
+  int _followingCount = 0;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCounts();
+  }
+
+  Future<void> _loadCounts() async {
+    try {
+      final api = GetIt.instance<ApiClient>();
+      final followers = await api.getFollowers(widget.userId);
+      final following = await api.getFollowing(widget.userId);
+      
+      if (mounted) {
+        setState(() {
+          _followersCount = followers.length;
+          _followingCount = following.length;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      color: const Color(0xFF0C2542),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+        child: Row(
+          children: [
+            _StatButton(
+              label: 'Seguidores',
+              count: _followersCount,
+              onTap: () {},
+            ),
+            const SizedBox(width: 20),
+            _StatButton(
+              label: 'Siguiendo',
+              count: _followingCount,
+              onTap: () {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatButton extends StatelessWidget {
+  final String label;
+  final int count;
+  final VoidCallback onTap;
+
+  const _StatButton({
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 4.0),
+        child: Row(
+          children: [
+            Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 15,
               ),
             ),
           ],
