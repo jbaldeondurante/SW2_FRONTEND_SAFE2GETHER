@@ -17,6 +17,7 @@ import 'features/home/home_page.dart';
 import 'features/home/comparacion_distritos_page.dart';
 import 'features/home/district_ranking_page.dart';
 import 'features/reportes/reportes_page.dart';
+import 'features/reportes/reporte_detalle_page.dart';
 import 'features/profile/profile_page.dart';
 import 'features/mapa/mapa_page.dart';
 import 'features/alertas/alertas_page.dart';
@@ -125,6 +126,18 @@ class _AppState extends State<App> {
           path: '/reportes',
           name: 'reportes',
           builder: (_, __) => ReportesPage(api: sl<ApiClient>()),
+        ),
+        GoRoute(
+          path: '/reportes/:id',
+          name: 'reporte-detalle',
+          builder: (_, state) {
+            final idStr = state.pathParameters['id'];
+            final id = int.tryParse(idStr ?? '');
+            if (id == null) {
+              return ReportesPage(api: sl<ApiClient>());
+            }
+            return ReporteDetallePage(reporteId: id, api: sl<ApiClient>());
+          },
         ),
         GoRoute(
           path: '/mapa',

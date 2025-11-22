@@ -37,11 +37,25 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
   int _downvotes = 0;
   String? _userReactionTipo;
   int? _userReactionId;
+  
+  // Notas de comunidad
+  List<Map<String, dynamic>> _notasComunidad = [];
+  bool _loadingNotas = false;
+  bool _postingNota = false;
+  final TextEditingController _notaCtrl = TextEditingController();
+  int? _editingNotaId;
+  bool? _esVeraz; // null = neutral, true = veraz, false = falso
 
   @override
   void initState() {
     super.initState();
     _loadReporteDetalle();
+  }
+
+  @override
+  void dispose() {
+    _notaCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadReporteDetalle() async {
@@ -152,6 +166,9 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
         } catch (_) {}
       }
 
+      // 6. Obtener notas de comunidad
+      await _loadNotasComunidad();
+
       setState(() {
         _reporte = reporte;
         _userName = userName;
@@ -247,6 +264,190 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
         SnackBar(content: Text('Error al actualizar reacción: $e')),
       );
     }
+  }
+
+  Future<void> _loadNotasComunidad() async {
+    setState(() => _loadingNotas = true);
+    try {
+      final base = Env.apiBaseUrl;
+      final notasRes = await http.get(
+        Uri.parse('$base/Notas_Comunidad/reporte/${widget.reporteId}'),
+      );
+      
+      if (notasRes.statusCode == 200) {
+        final notasList = jsonDecode(notasRes.body) as List<dynamic>;
+        final notas = notasList.cast<Map<String, dynamic>>();
+        
+        // Obtener nombres de usuarios
+        for (var nota in notas) {
+          try {
+            final userId = nota['user_id'] as int?;
+            if (userId != null) {
+              final userRes = await http.get(Uri.parse('$base/users/$userId'));
+              if (userRes.statusCode == 200) {
+                final userData = jsonDecode(userRes.body);
+                nota['user_name'] = userData['user']?.toString() ?? 'Usuario $userId';
+              }
+            }
+          } catch (_) {
+            nota['user_name'] = 'Usuario';
+          }
+        }
+        
+        setState(() => _notasComunidad = notas);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar notas: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingNotas = false);
+    }
+  }
+
+  Future<void> _submitNota() async {
+    final currentUserId = GetIt.instance<SupabaseService>().backendUserId;
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes iniciar sesión para agregar notas')),
+      );
+      return;
+    }
+
+    final text = _notaCtrl.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La nota no puede estar vacía')),
+      );
+      return;
+    }
+
+    setState(() => _postingNota = true);
+    try {
+      final base = Env.apiBaseUrl;
+      
+      if (_editingNotaId != null) {
+        // Editar nota existente
+        final body = {
+          'nota': text,
+          if (_esVeraz != null) 'es_veraz': _esVeraz,
+        };
+        final res = await http.patch(
+          Uri.parse('$base/Notas_Comunidad/$_editingNotaId'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        );
+        
+        if (res.statusCode == 200) {
+          setState(() {
+            _notaCtrl.clear();
+            _editingNotaId = null;
+          });
+          await _loadNotasComunidad();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Nota actualizada exitosamente')),
+            );
+          }
+        } else {
+          throw Exception('Error al actualizar nota');
+        }
+      } else {
+        // Crear nueva nota
+        final body = {
+          'reporte_id': widget.reporteId,
+          'user_id': currentUserId,
+          'nota': text,
+          if (_esVeraz != null) 'es_veraz': _esVeraz,
+        };
+        final res = await http.post(
+          Uri.parse('$base/Notas_Comunidad'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        );
+        
+        if (res.statusCode == 201) {
+          setState(() => _notaCtrl.clear());
+          await _loadNotasComunidad();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Nota agregada exitosamente')),
+            );
+          }
+        } else {
+          throw Exception('Error al crear nota');
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _postingNota = false);
+    }
+  }
+
+  Future<void> _deleteNota(int notaId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar eliminación'),
+        content: const Text('¿Estás seguro de que deseas eliminar esta nota?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final base = Env.apiBaseUrl;
+      final res = await http.delete(
+        Uri.parse('$base/Notas_Comunidad/$notaId'),
+      );
+      
+      if (res.statusCode == 200) {
+        await _loadNotasComunidad();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nota eliminada exitosamente')),
+          );
+        }
+      } else {
+        throw Exception('Error al eliminar nota');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  void _editNota(Map<String, dynamic> nota) {
+    setState(() {
+      _editingNotaId = nota['id'] as int?;
+      _notaCtrl.text = nota['nota']?.toString() ?? '';
+      _esVeraz = nota['es_veraz'] as bool?;
+    });
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _editingNotaId = null;
+      _notaCtrl.clear();
+      _esVeraz = null;
+    });
   }
 
   Widget _buildImageGallery() {
@@ -554,10 +755,447 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
                                 ),
                               ),
                             )),
+                      
+                      const SizedBox(height: 24),
+                      const Divider(color: Colors.white24, thickness: 2),
+                      const SizedBox(height: 24),
+                      
+                      // Sección de Notas de Comunidad
+                      Row(
+                        children: [
+                          const Icon(Icons.verified_user, color: Colors.white, size: 24),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Notas de Veracidad de la Comunidad',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        color: Colors.blue[50],
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'La comunidad puede agregar notas para verificar o cuestionar la veracidad de este reporte.',
+                                  style: TextStyle(
+                                    color: Colors.blue[900],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Campo para nueva nota o edición
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _editingNotaId != null
+                                    ? 'Editar Nota de Veracidad'
+                                    : 'Agregar Nota de Veracidad',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              
+                              // Selector de veracidad
+                              Text(
+                                '¿Consideras que este reporte es veraz?',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: _postingNota ? null : () {
+                                        setState(() => _esVeraz = true);
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: _esVeraz == true
+                                              ? Colors.green[100]
+                                              : Colors.grey[100],
+                                          border: Border.all(
+                                            color: _esVeraz == true
+                                                ? Colors.green
+                                                : Colors.grey[300]!,
+                                            width: 2,
+                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.check_circle,
+                                              color: _esVeraz == true
+                                                  ? Colors.green[700]
+                                                  : Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Sí, es veraz',
+                                              style: TextStyle(
+                                                fontWeight: _esVeraz == true
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                                color: _esVeraz == true
+                                                    ? Colors.green[700]
+                                                    : Colors.grey[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: _postingNota ? null : () {
+                                        setState(() => _esVeraz = null);
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: _esVeraz == null
+                                              ? Colors.orange[100]
+                                              : Colors.grey[100],
+                                          border: Border.all(
+                                            color: _esVeraz == null
+                                                ? Colors.orange
+                                                : Colors.grey[300]!,
+                                            width: 2,
+                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.help_outline,
+                                              color: _esVeraz == null
+                                                  ? Colors.orange[700]
+                                                  : Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'No estoy seguro',
+                                              style: TextStyle(
+                                                fontWeight: _esVeraz == null
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                                color: _esVeraz == null
+                                                    ? Colors.orange[700]
+                                                    : Colors.grey[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: _postingNota ? null : () {
+                                        setState(() => _esVeraz = false);
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: _esVeraz == false
+                                              ? Colors.red[100]
+                                              : Colors.grey[100],
+                                          border: Border.all(
+                                            color: _esVeraz == false
+                                                ? Colors.red
+                                                : Colors.grey[300]!,
+                                            width: 2,
+                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.cancel,
+                                              color: _esVeraz == false
+                                                  ? Colors.red[700]
+                                                  : Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'No, es falso',
+                                              style: TextStyle(
+                                                fontWeight: _esVeraz == false
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                                color: _esVeraz == false
+                                                    ? Colors.red[700]
+                                                    : Colors.grey[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              
+                              TextField(
+                                controller: _notaCtrl,
+                                maxLines: 4,
+                                decoration: InputDecoration(
+                                  hintText: 'Escribe tu análisis sobre la veracidad de este reporte...',
+                                  filled: true,
+                                  fillColor: Colors.grey[100],
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                enabled: !_postingNota,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  if (_editingNotaId != null) ...[
+                                    TextButton(
+                                      onPressed: _postingNota ? null : _cancelEdit,
+                                      child: const Text('Cancelar'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  ElevatedButton.icon(
+                                    onPressed: _postingNota ? null : _submitNota,
+                                    icon: _postingNota
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : Icon(_editingNotaId != null ? Icons.save : Icons.send),
+                                    label: Text(_editingNotaId != null ? 'Actualizar' : 'Publicar'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Lista de notas de comunidad
+                      if (_loadingNotas)
+                        const Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                        )
+                      else if (_notasComunidad.isEmpty)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Center(
+                              child: Text(
+                                'No hay notas de veracidad aún. ¡Sé el primero en agregar una!',
+                                style: TextStyle(color: Colors.grey[600]),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        ..._notasComunidad.map((nota) {
+                          final currentUserId = GetIt.instance<SupabaseService>().backendUserId;
+                          final isAuthor = nota['user_id'] == currentUserId;
+                          
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        backgroundColor: Colors.green[100],
+                                        child: Icon(
+                                          Icons.verified_user,
+                                          color: Colors.green[700],
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              nota['user_name']?.toString() ?? 'Usuario',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            if (nota['created_at'] != null)
+                                              Text(
+                                                _formatDate(nota['created_at'].toString()),
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            const SizedBox(height: 4),
+                                            // Badge de verificación
+                                            if (nota['es_veraz'] != null)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 4,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: nota['es_veraz'] == true
+                                                      ? Colors.green[100]
+                                                      : Colors.red[100],
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: nota['es_veraz'] == true
+                                                        ? Colors.green
+                                                        : Colors.red,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      nota['es_veraz'] == true
+                                                          ? Icons.check_circle
+                                                          : Icons.cancel,
+                                                      size: 14,
+                                                      color: nota['es_veraz'] == true
+                                                          ? Colors.green[700]
+                                                          : Colors.red[700],
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      nota['es_veraz'] == true
+                                                          ? 'Considera veraz'
+                                                          : 'Considera falso',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: nota['es_veraz'] == true
+                                                            ? Colors.green[700]
+                                                            : Colors.red[700],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (isAuthor) ...[
+                                        IconButton(
+                                          icon: const Icon(Icons.edit, size: 20),
+                                          onPressed: () => _editNota(nota),
+                                          tooltip: 'Editar',
+                                          color: Colors.blue,
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete, size: 20),
+                                          onPressed: () => _deleteNota(nota['id'] as int),
+                                          tooltip: 'Eliminar',
+                                          color: Colors.red,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.grey[300]!),
+                                    ),
+                                    child: Text(
+                                      nota['nota']?.toString() ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
                     ],
                   ),
                 ),
     );
+  }
+
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      
+      if (diff.inDays > 365) {
+        return 'Hace ${(diff.inDays / 365).floor()} año${(diff.inDays / 365).floor() > 1 ? 's' : ''}';
+      } else if (diff.inDays > 30) {
+        return 'Hace ${(diff.inDays / 30).floor()} mes${(diff.inDays / 30).floor() > 1 ? 'es' : ''}';
+      } else if (diff.inDays > 0) {
+        return 'Hace ${diff.inDays} día${diff.inDays > 1 ? 's' : ''}';
+      } else if (diff.inHours > 0) {
+        return 'Hace ${diff.inHours} hora${diff.inHours > 1 ? 's' : ''}';
+      } else if (diff.inMinutes > 0) {
+        return 'Hace ${diff.inMinutes} minuto${diff.inMinutes > 1 ? 's' : ''}';
+      } else {
+        return 'Hace un momento';
+      }
+    } catch (_) {
+      return dateStr;
+    }
   }
 
   Widget _buildReactionButton({

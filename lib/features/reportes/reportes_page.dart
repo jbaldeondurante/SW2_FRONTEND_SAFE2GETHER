@@ -366,12 +366,16 @@ class _ReportesPageState extends State<ReportesPage> with SingleTickerProviderSt
                         horizontal: 12,
                         vertical: 8,
                       ),
-                      child: _ReportCard(
-                        report: r,
-                        userName: user,
-                        imagenes: imagenes,
-                        userReaction: reaction,
-                        currentUserId: data.currentUserId,
+                      child: InkWell(
+                        onTap: () => context.push('/reportes/${r.id}'),
+                        borderRadius: BorderRadius.circular(4),
+                        child: _ReportCard(
+                          report: r,
+                          userName: user,
+                          imagenes: imagenes,
+                          userReaction: reaction,
+                          currentUserId: data.currentUserId,
+                        ),
                       ),
                     ),
                   ),
