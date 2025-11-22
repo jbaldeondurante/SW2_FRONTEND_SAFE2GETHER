@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import '../../core/api_client.dart';
 import '../../core/env.dart';
+import '../../core/responsive_utils.dart';
 import '../reportes/reporte_detalle_page.dart';
 
 class Reporte {
@@ -317,11 +318,13 @@ class _MapaPageState extends State<MapaPage> {
   /// 🎛️ Muestra el diálogo de filtros
   Future<void> _mostrarFiltros() async {
     final categorias = _reportes.map((r) => r.categoria).toSet().toList()..sort();
+    final dialogPadding = ResponsiveHelper.getPadding(context, factor: 0.75);
     
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+          contentPadding: dialogPadding,
           title: const Row(
             children: [
               Icon(Icons.filter_list, color: Colors.blue),
@@ -544,18 +547,21 @@ class _MapaPageState extends State<MapaPage> {
     );
 
     // Mostrar diálogo con el resumen
+    final dialogPadding = ResponsiveHelper.getPadding(context, factor: 0.75);
+    final isMobile = ResponsiveHelper.isMobile(context);
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        contentPadding: dialogPadding,
         title: Row(
           children: [
             Icon(Icons.calendar_view_week, color: Colors.blue[700]),
             const SizedBox(width: 8),
-            const Text('Resumen Semanal'),
+            Text('Resumen Semanal', style: TextStyle(fontSize: isMobile ? 16 : 18)),
           ],
         ),
         content: SizedBox(
-          width: double.maxFinite,
+          width: isMobile ? MediaQuery.of(ctx).size.width * 0.9 : double.maxFinite,
           child: reportesSemana.isEmpty
               ? const Padding(
                   padding: EdgeInsets.all(24),
@@ -803,14 +809,17 @@ class _MapaPageState extends State<MapaPage> {
     final color = _getHeatColor(reportes.length);
     final nivelRiesgo = reportes.length > 10 ? 'Alto' : reportes.length > 5 ? 'Medio' : 'Bajo';
 
+    final dialogPadding = ResponsiveHelper.getPadding(context, factor: 0.75);
+    final isMobile = ResponsiveHelper.isMobile(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        contentPadding: dialogPadding,
         title: Row(
           children: [
             Icon(Icons.analytics, color: Colors.blue[700]),
             const SizedBox(width: 8),
-            const Text('Resumen de la Zona'),
+            Text('Resumen de la Zona', style: TextStyle(fontSize: isMobile ? 16 : 18)),
           ],
         ),
         content: SingleChildScrollView(

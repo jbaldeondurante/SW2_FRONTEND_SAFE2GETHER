@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../core/api_client.dart';
 import '../../core/env.dart';
+import '../../core/responsive_utils.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/supabase_service.dart';
@@ -240,10 +241,13 @@ class _ReportesPageState extends State<ReportesPage> with SingleTickerProviderSt
                     final result = await showDialog<bool>(
                       context: context,
                       builder: (ctx) {
+                        final dialogWidth = ResponsiveHelper.isMobile(ctx) 
+                            ? MediaQuery.of(ctx).size.width * 0.95
+                            : 420.0;
                         return AlertDialog(
                           backgroundColor: Colors.white,
-                          contentPadding: const EdgeInsets.all(16),
-                          content: SizedBox(width: 420, child: ReportesCreateForm()),
+                          contentPadding: ResponsiveHelper.getPadding(ctx, factor: 0.67),
+                          content: SizedBox(width: dialogWidth, child: ReportesCreateForm()),
                         );
                       },
                     );
@@ -301,9 +305,10 @@ class _ReportesPageState extends State<ReportesPage> with SingleTickerProviderSt
             return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
+            final maxWidth = ResponsiveHelper.getMaxContentWidth(context);
             return Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 900),
+                constraints: BoxConstraints(maxWidth: maxWidth),
                 child: _ErrorView(
                   message: snap.error.toString(),
                   onRetry: _refresh,
@@ -313,16 +318,18 @@ class _ReportesPageState extends State<ReportesPage> with SingleTickerProviderSt
           }
           final data = snap.data!;
           if (data.reports.isEmpty) {
+            final maxWidth = ResponsiveHelper.getMaxContentWidth(context);
+            final padding = ResponsiveHelper.getPadding(context);
             return RefreshIndicator(
               onRefresh: _refresh,
               child: ListView(
                 children: [
-                  const SizedBox(height: 48),
+                  SizedBox(height: ResponsiveHelper.getVerticalSpacing(context) * 3),
                   Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 900),
+                      constraints: BoxConstraints(maxWidth: maxWidth),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: EdgeInsets.symmetric(horizontal: padding.left),
                         child: Column(
                           children: const [
                             SizedBox(height: 120),
@@ -348,10 +355,13 @@ class _ReportesPageState extends State<ReportesPage> with SingleTickerProviderSt
               ),
             );
           }
+          final maxWidth = ResponsiveHelper.getMaxContentWidth(context);
+          final horizontalPadding = ResponsiveHelper.getHorizontalSpacing(context) * 0.75;
+          final verticalPadding = ResponsiveHelper.getVerticalSpacing(context) * 0.5;
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: EdgeInsets.symmetric(vertical: verticalPadding),
               itemCount: data.reports.length,
               itemBuilder: (context, i) {
                 final r = data.reports[i];
@@ -360,11 +370,11 @@ class _ReportesPageState extends State<ReportesPage> with SingleTickerProviderSt
                 final reaction = data.userReactions[r.id];
                 return Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
+                    constraints: BoxConstraints(maxWidth: maxWidth),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: verticalPadding * 0.5,
                       ),
                       child: InkWell(
                         onTap: () => context.push('/reportes/${r.id}'),

@@ -2,12 +2,20 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
+import '../../core/responsive_utils.dart';
 
 class _UserInfo {
   final int id;
   final String username;
+  final bool notificarReportes;
+  final int? relationId; // ID de la relación en la tabla Seguidores
 
-  _UserInfo({required this.id, required this.username});
+  _UserInfo({
+    required this.id, 
+    required this.username,
+    this.notificarReportes = true,
+    this.relationId,
+  });
 }
 
 class FollowersPage extends StatefulWidget {
@@ -55,6 +63,9 @@ class _FollowersPageState extends State<FollowersPage> {
               ? rel['seguidor_id'] as int?
               : rel['seguido_id'] as int?;
           
+          final relationId = rel['id'] as int?;
+          final notificarReportes = rel['notificar_reportes'] as bool? ?? true;
+          
           if (targetUserId != null) {
             try {
               final userRes = await widget.api.getJson('/users/$targetUserId');
@@ -64,18 +75,24 @@ class _FollowersPageState extends State<FollowersPage> {
                   users.add(_UserInfo(
                     id: targetUserId,
                     username: userData['user']?.toString() ?? 'Usuario $targetUserId',
+                    notificarReportes: notificarReportes,
+                    relationId: relationId,
                   ));
                 }
               } else {
                 users.add(_UserInfo(
                   id: targetUserId,
                   username: 'Usuario $targetUserId',
+                  notificarReportes: notificarReportes,
+                  relationId: relationId,
                 ));
               }
             } catch (_) {
               users.add(_UserInfo(
                 id: targetUserId,
                 username: 'Usuario $targetUserId',
+                notificarReportes: notificarReportes,
+                relationId: relationId,
               ));
             }
           }
@@ -133,14 +150,16 @@ class _FollowersPageState extends State<FollowersPage> {
             );
           }
 
+          final padding = ResponsiveHelper.getPadding(context);
+          final spacing = ResponsiveHelper.getVerticalSpacing(context) * 0.75;
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: padding,
             itemCount: users.length,
             itemBuilder: (context, index) {
               final user = users[index];
               return Card(
                 color: const Color(0xFF0C2542),
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: EdgeInsets.only(bottom: spacing),
                 child: ListTile(
                   leading: const CircleAvatar(
                     child: Icon(Icons.person),
@@ -149,18 +168,91 @@ class _FollowersPageState extends State<FollowersPage> {
                     user.username,
                     style: const TextStyle(color: Colors.white),
                   ),
-                  subtitle: Text(
-                    'ID: ${user.id}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  trailing: const Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white70,
-                    size: 16,
-                  ),
-                  onTap: () {
-                    context.push('/profile/${user.id}');
-                  },
+                  subtitle: widget.showFollowers
+                      ? Text(
+                          'ID: ${user.id}',
+                          style: const TextStyle(color: Colors.white70),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'ID: ${user.id}',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  user.notificarReportes ? Icons.notifications_active : Icons.notifications_off,
+                                  size: 14,
+                                  color: user.notificarReportes ? Colors.green : Colors.grey,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  user.notificarReportes ? 'Notificaciones activas' : 'Notificaciones desactivadas',
+                                  style: TextStyle(
+                                    color: user.notificarReportes ? Colors.green : Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                  trailing: widget.showFollowers
+                      ? const Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.white70,
+                          size: 16,
+                        )
+                      : Switch(
+                          value: user.notificarReportes,
+                          onChanged: (value) async {
+                            try {
+                              // Llamar al endpoint para actualizar preferencias
+                              await widget.api.updateNotificationPreference(
+                                seguidorId: widget.userId,
+                                seguidoId: user.id,
+                                notificar: value,
+                              );
+                              
+                              // Recargar la lista
+                              setState(() {
+                                _future = _loadUsers();
+                              });
+                              
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      value
+                                          ? 'Notificaciones activadas para ${user.username}'
+                                          : 'Notificaciones desactivadas para ${user.username}',
+                                    ),
+                                    backgroundColor: value ? Colors.green : Colors.grey,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error al actualizar preferencias: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          activeColor: Colors.green,
+                        ),
+                  onTap: widget.showFollowers
+                      ? () {
+                          context.push('/profile/${user.id}');
+                        }
+                      : null,
                 ),
               );
             },

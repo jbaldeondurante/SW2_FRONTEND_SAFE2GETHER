@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 
 import '../../core/api_client.dart';
 import '../../core/supabase_service.dart';
+import '../../core/responsive_utils.dart';
+import '../alertas/areas_interes_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final ApiClient api;
@@ -101,38 +103,40 @@ class _ProfilePageState extends State<ProfilePage> {
             );
           }
           final data = snap.data!;
+          final padding = ResponsiveHelper.getPadding(context, factor: 0.75);
+          final maxWidth = ResponsiveHelper.getMaxContentWidth(context);
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              padding: padding,
               children: [
                 Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
+                    constraints: BoxConstraints(maxWidth: maxWidth),
                     child: _Header(
                       username: data.username,
                       userId: data.userId,
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: ResponsiveHelper.getVerticalSpacing(context) * 0.75),
                 Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
+                    constraints: BoxConstraints(maxWidth: maxWidth),
                     child: _FollowStats(
                       username: data.username,
                       userId: data.userId,
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: ResponsiveHelper.getVerticalSpacing(context) * 0.75),
                 if (data.reports.isEmpty)
                   _Empty(isSelf: GetIt.instance<SupabaseService>().backendUserId == data.userId)
                 else
                   ...data.reports.map(
                     (r) => Center(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 900),
+                        constraints: BoxConstraints(maxWidth: maxWidth),
                         child: _ReportTile(report: r),
                       ),
                     ),
@@ -323,6 +327,34 @@ class _HeaderState extends State<_Header> {
                         ),
               ],
             ),
+            // Mostrar botón de Áreas de Interés solo si es perfil propio
+            if (isSelf) ...[
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.place, color: Colors.white70),
+                title: const Text(
+                  'Mis Áreas de Interés',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                ),
+                subtitle: const Text(
+                  'Configura alertas para tus zonas frecuentes',
+                  style: TextStyle(color: Colors.white60, fontSize: 13),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => AreasInteresPage(
+                        api: GetIt.instance<ApiClient>(),
+                        userId: widget.userId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),

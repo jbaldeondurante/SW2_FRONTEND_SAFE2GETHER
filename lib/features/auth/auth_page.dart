@@ -5,6 +5,7 @@ import '../../core/supabase_service.dart';
 import '../../core/api_client.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/env.dart';
+import '../../core/responsive_utils.dart';
 
 class AuthPage extends StatefulWidget {
   final SupabaseService auth;
@@ -185,6 +186,14 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final deviceType = ResponsiveHelper.getDeviceType(context);
+    final maxWidth = deviceType == DeviceType.mobile 
+        ? double.infinity 
+        : deviceType == DeviceType.tablet 
+            ? 500.0 
+            : 460.0;
+    final padding = ResponsiveHelper.getPadding(context, factor: 0.75);
+    final logoSize = ResponsiveHelper.getFontSize(context, 85);
 
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
@@ -194,41 +203,41 @@ class _AuthPageState extends State<AuthPage> {
       child: FocusTraversalGroup(
         child: Scaffold(
           backgroundColor: const Color(0xFF08192D),
-          body: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: SingleChildScrollView(
-                // ✅ ADDED THIS
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.asset(
-                          'assets/SS.png',
-                          height: 85,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) =>
-                              const FlutterLogo(size: 96),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: padding,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.asset(
+                            'assets/SS.png',
+                            height: logoSize,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) =>
+                                FlutterLogo(size: logoSize),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
+                        SizedBox(height: ResponsiveHelper.getVerticalSpacing(context) * 0.75),
 
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _isLogin ? 'Iniciar sesión' : 'Crear cuenta',
-                                  style: theme.textTheme.titleLarge,
-                                ),
-                                const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: ResponsiveHelper.getPadding(context, factor: 0.67),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _isLogin ? 'Iniciar sesión' : 'Crear cuenta',
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 12),
 
                                 // Usuario (tu backend lo requiere)
                                 TextFormField(
@@ -397,11 +406,12 @@ class _AuthPageState extends State<AuthPage> {
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ), // ✅ CLOSED SingleChildScrollView here
+              ),
             ),
           ),
         ),

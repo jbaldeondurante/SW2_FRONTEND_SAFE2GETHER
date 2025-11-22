@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import '../../core/api_client.dart';
 import '../../core/env.dart';
 import '../../core/supabase_service.dart';
+import '../../core/responsive_utils.dart';
 
 class ReporteDetallePage extends StatefulWidget {
   final int reporteId;
@@ -523,6 +524,9 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
 
   @override
   Widget build(BuildContext context) {
+    final padding = ResponsiveHelper.getPadding(context);
+    final spacing = ResponsiveHelper.getVerticalSpacing(context);
+    
     return Scaffold(
       backgroundColor: const Color(0xFF0E2D52),
       appBar: AppBar(
@@ -534,26 +538,30 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, size: 64, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.white),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadReporteDetalle,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
+                  child: Padding(
+                    padding: padding,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error, size: 64, color: Colors.red),
+                        SizedBox(height: spacing),
+                        Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.white),
+                          textAlign: TextAlign.center,
+                        ),
+                        SizedBox(height: spacing),
+                        ElevatedButton(
+                          onPressed: _loadReporteDetalle,
+                          child: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
                   ),
                 )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+              : SafeArea(
+                  child: SingleChildScrollView(
+                    padding: padding,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -827,146 +835,60 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: InkWell(
+                              // Diseño responsivo: fila en pantallas grandes, columna en móvil
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final isMobile = constraints.maxWidth < 400;
+                                  
+                                  final buttons = [
+                                    _buildVeracityButton(
+                                      label: 'Sí, es veraz',
+                                      icon: Icons.check_circle,
+                                      isSelected: _esVeraz == true,
+                                      color: Colors.green,
                                       onTap: _postingNota ? null : () {
                                         setState(() => _esVeraz = true);
                                       },
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: _esVeraz == true
-                                              ? Colors.green[100]
-                                              : Colors.grey[100],
-                                          border: Border.all(
-                                            color: _esVeraz == true
-                                                ? Colors.green
-                                                : Colors.grey[300]!,
-                                            width: 2,
-                                          ),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.check_circle,
-                                              color: _esVeraz == true
-                                                  ? Colors.green[700]
-                                                  : Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'Sí, es veraz',
-                                              style: TextStyle(
-                                                fontWeight: _esVeraz == true
-                                                    ? FontWeight.bold
-                                                    : FontWeight.normal,
-                                                color: _esVeraz == true
-                                                    ? Colors.green[700]
-                                                    : Colors.grey[700],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: InkWell(
+                                    _buildVeracityButton(
+                                      label: 'No estoy seguro',
+                                      icon: Icons.help_outline,
+                                      isSelected: _esVeraz == null,
+                                      color: Colors.orange,
                                       onTap: _postingNota ? null : () {
                                         setState(() => _esVeraz = null);
                                       },
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: _esVeraz == null
-                                              ? Colors.orange[100]
-                                              : Colors.grey[100],
-                                          border: Border.all(
-                                            color: _esVeraz == null
-                                                ? Colors.orange
-                                                : Colors.grey[300]!,
-                                            width: 2,
-                                          ),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.help_outline,
-                                              color: _esVeraz == null
-                                                  ? Colors.orange[700]
-                                                  : Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'No estoy seguro',
-                                              style: TextStyle(
-                                                fontWeight: _esVeraz == null
-                                                    ? FontWeight.bold
-                                                    : FontWeight.normal,
-                                                color: _esVeraz == null
-                                                    ? Colors.orange[700]
-                                                    : Colors.grey[700],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: InkWell(
+                                    _buildVeracityButton(
+                                      label: 'No, es falso',
+                                      icon: Icons.cancel,
+                                      isSelected: _esVeraz == false,
+                                      color: Colors.red,
                                       onTap: _postingNota ? null : () {
                                         setState(() => _esVeraz = false);
                                       },
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: _esVeraz == false
-                                              ? Colors.red[100]
-                                              : Colors.grey[100],
-                                          border: Border.all(
-                                            color: _esVeraz == false
-                                                ? Colors.red
-                                                : Colors.grey[300]!,
-                                            width: 2,
-                                          ),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.cancel,
-                                              color: _esVeraz == false
-                                                  ? Colors.red[700]
-                                                  : Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'No, es falso',
-                                              style: TextStyle(
-                                                fontWeight: _esVeraz == false
-                                                    ? FontWeight.bold
-                                                    : FontWeight.normal,
-                                                color: _esVeraz == false
-                                                    ? Colors.red[700]
-                                                    : Colors.grey[700],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ];
+                                  
+                                  if (isMobile) {
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: buttons.map((btn) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 8),
+                                        child: btn,
+                                      )).toList(),
+                                    );
+                                  }
+                                  
+                                  return Row(
+                                    children: buttons.map((btn) => Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                                        child: btn,
+                                      ),
+                                    )).toList(),
+                                  );
+                                },
                               ),
                               const SizedBox(height: 16),
                               
@@ -1170,6 +1092,7 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
                         }),
                     ],
                   ),
+                  ),
                 ),
     );
   }
@@ -1250,5 +1173,48 @@ class _ReporteDetallePageState extends State<ReporteDetallePage> {
       default:
         return Colors.grey;
     }
+  }
+
+  Widget _buildVeracityButton({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required MaterialColor color,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color[100] : Colors.grey[100],
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? color[700] : Colors.grey[600],
+              size: 20,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? color[700] : Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../core/env.dart';
+import '../../core/responsive_utils.dart';
 
 class ComparacionDistritosPage extends StatefulWidget {
   const ComparacionDistritosPage({super.key});
@@ -424,10 +425,10 @@ class _ComparacionDistritosPageState extends State<ComparacionDistritosPage> {
                   ),
                 )
               : _estadisticas.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Column(
+                        padding: ResponsiveHelper.getPadding(context, factor: 2),
+                        child: const Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.location_off,

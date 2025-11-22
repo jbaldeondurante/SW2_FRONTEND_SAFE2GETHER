@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import '../../core/env.dart';
+import '../../core/responsive_utils.dart';
 
 class PasswordResetPage extends StatefulWidget {
   final String? token;
@@ -189,6 +190,11 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
 
   @override
   Widget build(BuildContext context) {
+    final maxWidth = ResponsiveHelper.getMaxContentWidth(context);
+    final padding = ResponsiveHelper.getPadding(context);
+    final logoSize = ResponsiveHelper.getFontSize(context, 85);
+    final spacing = ResponsiveHelper.getVerticalSpacing(context);
+    
     return Scaffold(
       backgroundColor: const Color(0xFF08192D),
       appBar: AppBar(
@@ -199,30 +205,31 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
           onPressed: () => context.go('/login'),
         ),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Logo
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(
-                    'assets/SS.png',
-                    height: 85,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const FlutterLogo(size: 96),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth < 600 ? maxWidth : 460),
+            child: SingleChildScrollView(
+              padding: padding,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/SS.png',
+                      height: logoSize,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => FlutterLogo(size: logoSize),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
+                  SizedBox(height: spacing * 1.5),
 
-                // Card principal
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
+                  // Card principal
+                  Card(
+                    child: Padding(
+                      padding: ResponsiveHelper.getPadding(context, factor: 1.5),
                     child: _isLoading
                         ? const Center(
                             child: Column(
@@ -237,9 +244,10 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                         : _isResetMode
                         ? _buildResetForm()
                         : _buildRequestForm(),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

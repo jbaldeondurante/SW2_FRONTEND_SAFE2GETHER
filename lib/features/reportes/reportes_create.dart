@@ -16,27 +16,33 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/supabase_service.dart';
 import '../../core/geocoding_service.dart';
 import '../../core/env.dart';
+import '../../core/responsive_utils.dart';
 
 class ReportesCreate extends StatelessWidget {
   const ReportesCreate({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final maxWidth = ResponsiveHelper.getMaxContentWidth(context);
+    final padding = ResponsiveHelper.getPadding(context);
+    
     return Scaffold(
       appBar: AppBar(title: const Text('Crear Reporte')),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Align(
-            alignment: Alignment.topCenter,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: const ReportesCreateForm(),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Align(
+              alignment: Alignment.topCenter,
+              child: SingleChildScrollView(
+                padding: padding,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth < 600 ? maxWidth : 480),
+                  child: const ReportesCreateForm(),
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

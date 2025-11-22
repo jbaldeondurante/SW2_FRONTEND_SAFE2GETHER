@@ -151,6 +151,50 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> patchJson(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final res = await _dio
+          .patch(path, data: body, queryParameters: query)
+          .timeout(const Duration(seconds: 12));
+      return _asMap(res);
+    } on DioException catch (e) {
+      throw Exception(_prettyDioError(e));
+    }
+  }
+
+  Future<Map<String, dynamic>> putJson(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final res = await _dio
+          .put(path, data: body, queryParameters: query)
+          .timeout(const Duration(seconds: 12));
+      return _asMap(res);
+    } on DioException catch (e) {
+      throw Exception(_prettyDioError(e));
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteJson(
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final res = await _dio
+          .delete(path, queryParameters: query)
+          .timeout(const Duration(seconds: 12));
+      return _asMap(res);
+    } on DioException catch (e) {
+      throw Exception(_prettyDioError(e));
+    }
+  }
+
   // --- Integración explícita con tu FastAPI ---
   Future<Map<String, dynamic>> createUser({
     required String user,
@@ -285,5 +329,25 @@ class ApiClient {
     final data = r['data'];
     if (data is List) return data;
     return [];
+  }
+
+  Future<Map<String, dynamic>> updateNotificationPreference({
+    required int seguidorId,
+    required int seguidoId,
+    required bool notificar,
+  }) async {
+    try {
+      final res = await _dio
+          .put('/Seguidores/notificaciones/$seguidorId/$seguidoId?notificar=$notificar')
+          .timeout(const Duration(seconds: 12));
+      final result = _asMap(res);
+      final code = result['status'] as int?;
+      if (code != null && code >= 400) {
+        throw Exception('Error al actualizar preferencias: ${jsonEncode(result)}');
+      }
+      return result;
+    } on DioException catch (e) {
+      throw Exception(_prettyDioError(e));
+    }
   }
 }

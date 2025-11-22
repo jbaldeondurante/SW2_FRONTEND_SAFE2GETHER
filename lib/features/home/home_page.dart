@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
 import '../../core/supabase_service.dart';
 import '../../core/env.dart';
+import '../../core/responsive_utils.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HomePage extends StatefulWidget {
@@ -35,6 +36,10 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
+    final maxWidth = ResponsiveHelper.getMaxContentWidth(context);
+    final padding = ResponsiveHelper.getPadding(context);
+    final spacing = ResponsiveHelper.getVerticalSpacing(context);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Safe2Gether'),
@@ -57,11 +62,12 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: ListView(
+              padding: padding,
             children: [
               Card(
                 child: ListTile(
@@ -70,13 +76,13 @@ class _HomePageState extends State<HomePage> {
                   subtitle: Text('API: ${Env.apiBaseUrl}'),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: spacing * 0.75),
               FilledButton.icon(
                 onPressed: _ping,
                 icon: const Icon(Icons.wifi_tethering),
                 label: const Text('Probar conexión con FastAPI'),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: spacing * 0.75),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
@@ -86,10 +92,10 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: spacing * 1.5),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: spacing * 0.5,
+                runSpacing: spacing * 0.5,
                 children: [
                   OutlinedButton.icon(
                     onPressed: () => context.push('/reportes'),
@@ -120,6 +126,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
