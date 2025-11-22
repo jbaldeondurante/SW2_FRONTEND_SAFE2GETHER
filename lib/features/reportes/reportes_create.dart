@@ -11,6 +11,7 @@ import 'package:get_it/get_it.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../core/supabase_service.dart';
 import '../../core/geocoding_service.dart';
@@ -75,10 +76,17 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
   late final String _base;
   final List<String> _uploadedImageUrls = [];
   bool _isUploadingImages = false;
+  
+  // Variables para el mapa interactivo
+  GoogleMapController? _mapController;
+  bool _showMap = false;
+  LatLng? _markerPosition;
+  bool _isReverseGeocoding = false;
 
   @override
   void dispose() {
     _addrDebounce?.cancel();
+    _mapController?.dispose();
     _tituloCtrl.dispose();
     _descripcionCtrl.dispose();
     _direccionCtrl.dispose();
@@ -119,6 +127,7 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
       setState(() {
         _lat = null;
         _lon = null;
+        _markerPosition = null;
       });
       return;
     }
@@ -131,11 +140,19 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
         setState(() {
           _lat = result.latitude;
           _lon = result.longitude;
+          _markerPosition = LatLng(_lat!, _lon!);
         });
+        // Si el mapa está visible, mover la cámara al nuevo marcador
+        if (_showMap && _mapController != null) {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLng(_markerPosition!),
+          );
+        }
       } else {
         setState(() {
           _lat = null;
           _lon = null;
+          _markerPosition = null;
         });
       }
     } finally {
@@ -152,11 +169,61 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
           _lat = result.latitude;
           _lon = result.longitude;
           _direccionCtrl.text = result.formattedAddress;
+          _markerPosition = LatLng(_lat!, _lon!);
         });
+        // Si el mapa está visible, mover la cámara
+        if (_showMap && _mapController != null) {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLng(_markerPosition!),
+          );
+        }
       }
     } finally {
       if (mounted) setState(() => _isFetchingLocation = false);
     }
+  }
+
+  // Método para actualizar la posición desde el mapa
+  Future<void> _onMarkerDragEnd(LatLng newPosition) async {
+    setState(() {
+      _markerPosition = newPosition;
+      _lat = newPosition.latitude;
+      _lon = newPosition.longitude;
+      _isReverseGeocoding = true;
+    });
+
+    try {
+      // Reverse geocoding: obtener dirección desde coordenadas
+      final address = await _geocodingService.getAddressFromCoordinates(
+        newPosition.latitude,
+        newPosition.longitude,
+      );
+      
+      if (!mounted) return;
+      
+      setState(() {
+        if (address != null && address.isNotEmpty) {
+          _direccionCtrl.text = address;
+        }
+        _isReverseGeocoding = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isReverseGeocoding = false);
+      }
+      debugPrint('Error en reverse geocoding: $e');
+    }
+  }
+
+  // Método para abrir/cerrar el selector de mapa
+  void _toggleMapSelector() {
+    setState(() {
+      _showMap = !_showMap;
+      // Si se abre el mapa y ya hay coordenadas, posicionar el marcador
+      if (_showMap && _lat != null && _lon != null) {
+        _markerPosition = LatLng(_lat!, _lon!);
+      }
+    });
   }
 
   Future<void> _pickAndUploadImagesWeb() async {
@@ -443,10 +510,11 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
     return SafeArea(
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Row(
               children: [
                 const Icon(Icons.person_outline),
@@ -632,6 +700,114 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
               ),
             ],
             const SizedBox(height: spacing),
+            
+            // Botón para mostrar/ocultar el selector de mapa
+            OutlinedButton.icon(
+              onPressed: _toggleMapSelector,
+              icon: Icon(_showMap ? Icons.map_outlined : Icons.map),
+              label: Text(_showMap ? 'Ocultar mapa' : 'Seleccionar en mapa'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            
+            // Mapa interactivo
+            if (_showMap) ...[
+              const SizedBox(height: spacing),
+              Container(
+                height: 280,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    children: [
+                      GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: _markerPosition ?? const LatLng(-12.0464, -77.0428), // Lima por defecto
+                          zoom: _markerPosition != null ? 15 : 12,
+                        ),
+                        markers: _markerPosition != null
+                            ? {
+                                Marker(
+                                  markerId: const MarkerId('incident-location'),
+                                  position: _markerPosition!,
+                                  draggable: true,
+                                  onDragEnd: _onMarkerDragEnd,
+                                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                                    BitmapDescriptor.hueRed,
+                                  ),
+                                ),
+                              }
+                            : {},
+                        onMapCreated: (controller) {
+                          _mapController = controller;
+                        },
+                        onTap: (position) {
+                          // Al tocar el mapa, mover el marcador allí
+                          _onMarkerDragEnd(position);
+                        },
+                        myLocationEnabled: true,
+                        myLocationButtonEnabled: true,
+                        zoomControlsEnabled: true,
+                        mapToolbarEnabled: false,
+                      ),
+                      // Indicador de carga durante reverse geocoding
+                      if (_isReverseGeocoding)
+                        Container(
+                          color: Colors.black26,
+                          child: const Center(
+                            child: Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(),
+                                    SizedBox(width: 16),
+                                    Text('Obteniendo dirección...'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      // Instrucciones
+                      if (!_isReverseGeocoding)
+                        Positioned(
+                          top: 10,
+                          left: 10,
+                          right: 10,
+                          child: Card(
+                            color: Colors.white.withOpacity(0.9),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Toca o arrastra el marcador para seleccionar la ubicación',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            
             const SizedBox(height: 20),
             SizedBox(
               height: 48,
@@ -653,7 +829,8 @@ class _ReportesCreateFormState extends State<ReportesCreateForm> {
                 ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -110,6 +110,57 @@ class GeocodingService {
       return [];
     }
   }
+
+  // Reverse geocoding: obtener dirección desde coordenadas
+  Future<String?> getAddressFromCoordinates(double lat, double lng) async {
+    try {
+      // Intentar usar el proxy del backend primero
+      try {
+        final proxyUrl = Uri.parse(
+          '${Env.apiBaseUrl}/places/reverse-geocode?lat=$lat&lng=$lng',
+        );
+        final proxyRes = await http.get(proxyUrl);
+        if (proxyRes.statusCode == 200) {
+          final data = jsonDecode(proxyRes.body);
+          if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+            return data['results'][0]['formatted_address'].toString();
+          }
+        }
+      } catch (proxyError) {
+        print('Proxy reverse geocoding no disponible, usando API directa');
+      }
+
+      // Fallback: usar API directa
+      final apiKey = Env.googleMapsApiKey;
+      if (apiKey.isEmpty) {
+        print('Google Maps API Key no configurada');
+        return 'Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}';
+      }
+
+      final url = Uri.parse(
+        'https://maps.googleapis.com/maps/api/geocode/json'
+        '?latlng=$lat,$lng'
+        '&key=$apiKey',
+      );
+
+      final res = await http.get(url);
+      if (res.statusCode != 200) {
+        print('Reverse Geocoding HTTP ${res.statusCode}: ${res.body}');
+        return 'Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}';
+      }
+
+      final data = jsonDecode(res.body);
+      if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+        return data['results'][0]['formatted_address'].toString();
+      }
+
+      print('Reverse Geocoding falló: ${data['status']}');
+      return 'Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}';
+    } catch (e) {
+      print('Error en reverse geocoding: $e');
+      return 'Lat: ${lat.toStringAsFixed(4)}, Lng: ${lng.toStringAsFixed(4)}';
+    }
+  }
 }
 
 class LocationResult {
